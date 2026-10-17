@@ -99,6 +99,7 @@ public class PlayerController : MonoBehaviour
 
     public void ResetToVampire()
     {
+        if (isTimeSlowActive) StopTimeSlow();
         isVampire = true;
         serumTimer = serumDuration;
         serumCooldownTimer = 0f;
@@ -108,6 +109,8 @@ public class PlayerController : MonoBehaviour
 
     public void ApplyPowerBoost()
     {
+        if (hasPowerBoost) return;
+
         hasPowerBoost = true;
         maxHealth += 40f;
         currentHealth = maxHealth;
@@ -116,6 +119,7 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        if (GameManager.Instance != null && GameManager.Instance.currentState == GameManager.GameState.Paused) return;
         if (currentHealth <= 0f) return;
 
         HandleMouseLook();
@@ -431,7 +435,9 @@ public class PlayerController : MonoBehaviour
 
     public void TakeDamage(float amount)
     {
-        currentHealth -= amount;
+        if (currentHealth <= 0f || amount <= 0f) return;
+
+        currentHealth = Mathf.Max(0f, currentHealth - amount);
         if (currentHealth <= 0f)
         {
             Die("SLAIN BY SYNDICATE");

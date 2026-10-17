@@ -6,14 +6,17 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    public enum GameState { Cutscene, Level1, Level2, Level3, Level4, GameOver, Victory }
+    public enum GameState { MainMenu, Cutscene, Level1, Level2, Level3, Level4, Paused, GameOver, Victory }
 
-    public GameState currentState = GameState.Cutscene;
+    public GameState currentState = GameState.MainMenu;
     public int currentLevelIndex = 1;
 
     private PlayerController player;
     private readonly List<EnemyAI> activeEnemies = new List<EnemyAI>();
     private bool bossEpilogueTriggered = false;
+    private GameState stateBeforePause;
+    private float timeScaleBeforePause = 1f;
+    private float fixedDeltaTimeBeforePause = 0.02f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void AutoInitializeGame()
@@ -66,11 +69,47 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         EnsurePlayerExists();
-        StartPrologueCutscene();
+        player.gameObject.SetActive(false);
+        currentState = GameState.MainMenu;
+        UIManager.Instance?.ShowMainMenu();
     }
 
     private void Update()
     {
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            if (currentState == GameState.Paused)
+            {
+                ResumeGame();
+                return;
+            }
+
+            if (IsLevelActive() && player != null && player.gameObject.activeInHierarchy &&
+                (DialogueManager.Instance == null || !DialogueManager.Instance.IsDialogueActive) &&
+                (StoryNarrator.Instance == null || !StoryNarrator.Instance.IsInterludePlaying) &&
+                (CutsceneDirector.Instance == null || !CutsceneDirector.Instance.isCutsceneRunning))
+            {
+                PauseGame();
+                return;
+            }
+        }
+
+        if (currentState == GameState.Paused)
+        {
+            if (Keyboard.current != null)
+            {
+                if (Keyboard.current.rKey.wasPressedThisFrame)
+                {
+                    StartLevel(currentLevelIndex);
+                }
+                else if (Keyboard.current.qKey.wasPressedThisFrame)
+                {
+                    Application.Quit();
+                }
+            }
+            return;
+        }
+
         // Monitor Level 4 Boss Defeat -> Seamless Story Epilogue
         if (currentState == GameState.Level4 && !bossEpilogueTriggered)
         {
@@ -108,7 +147,7 @@ public class GameManager : MonoBehaviour
                 {
                     if (currentState == GameState.Victory)
                     {
-                        StartLevel(1);
+                        ContinueAfterVictory();
                     }
                     else
                     {
@@ -125,7 +164,14 @@ public class GameManager : MonoBehaviour
                 }
                 else if (Keyboard.current.escapeKey.wasPressedThisFrame)
                 {
-                    Application.Quit();
+                    if (currentState == GameState.Victory)
+                    {
+                        ReturnToMainMenu();
+                    }
+                    else
+                    {
+                        Application.Quit();
+                    }
                 }
             }
         }
@@ -133,15 +179,72 @@ public class GameManager : MonoBehaviour
 
     public void StartPrologueCutscene()
     {
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
         currentState = GameState.Cutscene;
+        activeEnemies.Clear();
+        LevelBuilder.Instance?.ClearCurrentLevel();
+        DialogueManager.Instance?.StopConversation();
+        UIManager.Instance?.HideMenusForCutscene();
         UIManager.Instance?.HideHUD();
         if (player != null) player.gameObject.SetActive(false);
-        CutsceneDirector.Instance?.PlayIntroCutscene();
+        if (CutsceneDirector.Instance != null)
+        {
+            CutsceneDirector.Instance.PlayIntroCutscene();
+        }
+        else
+        {
+            StartLevel(1);
+        }
+    }
+
+    public void ReturnToMainMenu()
+    {
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+        currentState = GameState.MainMenu;
+        activeEnemies.Clear();
+        LevelBuilder.Instance?.ClearCurrentLevel();
+        DialogueManager.Instance?.StopConversation();
+        if (player != null) player.gameObject.SetActive(false);
+        UIManager.Instance?.ShowMainMenu();
+    }
+
+    public void ContinueAfterVictory()
+    {
+        StartPrologueCutscene();
     }
 
     public void OnPlayerDefeated()
     {
         currentState = GameState.GameOver;
+        Time.timeScale = 0f;
+    }
+
+    private bool IsLevelActive()
+    {
+        return currentState == GameState.Level1 ||
+            currentState == GameState.Level2 ||
+            currentState == GameState.Level3 ||
+            currentState == GameState.Level4;
+    }
+
+    private void PauseGame()
+    {
+        stateBeforePause = currentState;
+        timeScaleBeforePause = Time.timeScale;
+        fixedDeltaTimeBeforePause = Time.fixedDeltaTime;
+        currentState = GameState.Paused;
+        Time.timeScale = 0f;
+        UIManager.Instance?.ShowPause();
+    }
+
+    private void ResumeGame()
+    {
+        currentState = stateBeforePause;
+        Time.timeScale = timeScaleBeforePause;
+        Time.fixedDeltaTime = fixedDeltaTimeBeforePause;
+        UIManager.Instance?.HidePause();
     }
 
     public void StartLevel(int level)
@@ -159,8 +262,10 @@ public class GameManager : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
         Time.timeScale = 1.0f;
+        Time.fixedDeltaTime = 0.02f;
 
         UIManager.Instance?.ShowHUD();
+        UIManager.Instance?.HidePause();
 
         if (level == 1)
         {
@@ -250,6 +355,8 @@ public class GameManager : MonoBehaviour
         {
             activeEnemies.Remove(enemy);
         }
+
+        if (!IsLevelActive() || (player != null && player.currentHealth <= 0f)) return;
 
         // Check if all enemies in level are eliminated
         if (activeEnemies.Count == 0)

@@ -50,6 +50,7 @@ public class BossController : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale <= 0f) return;
         if (!isAlive) return;
 
         if (player == null)
@@ -150,10 +151,7 @@ public class BossController : MonoBehaviour
 
         if (DialogueManager.Instance != null)
         {
-            DialogueManager.Instance.StartConversation(victoryDialog, () =>
-            {
-                UIManager.Instance?.ShowVictory();
-            });
+            DialogueManager.Instance.StartConversation(victoryDialog);
         }
         else
         {

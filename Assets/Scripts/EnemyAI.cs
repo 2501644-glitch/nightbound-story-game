@@ -85,6 +85,7 @@ public class EnemyAI : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale <= 0f) return;
         if (!isAlive) return;
 
         if (isStunned)
@@ -131,7 +132,7 @@ public class EnemyAI : MonoBehaviour
         float angle = Vector3.Angle(transform.forward, toPlayer);
         if (angle > fieldOfView * 0.5f) return false;
 
-        if (Physics.Raycast(eyePos, toPlayer.normalized, out RaycastHit hit, dist))
+        if (Physics.Raycast(eyePos, toPlayer.normalized, out RaycastHit hit, dist, Physics.AllLayers, QueryTriggerInteraction.Ignore))
         {
             if (hit.collider.GetComponentInParent<PlayerController>() == player)
             {

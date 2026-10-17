@@ -120,7 +120,7 @@ public class CutsceneDirector : MonoBehaviour
         portal.transform.position = new Vector3(0f, 2.5f, 4f);
         portal.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
         portal.transform.localScale = new Vector3(4.5f, 0.2f, 4.5f);
-        portal.GetComponent<Renderer>().material.color = new Color(0.1f, 0.8f, 1f);
+        ApplyCutsceneMaterial(portal, new Color(0.1f, 0.8f, 1f));
         stageActors.Add(portal);
 
         GameObject pLight = new GameObject("PortalLight");
@@ -175,7 +175,7 @@ public class CutsceneDirector : MonoBehaviour
         GameObject serumVial = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         serumVial.transform.position = new Vector3(0f, 1.8f, 2f);
         serumVial.transform.localScale = new Vector3(0.25f, 0.4f, 0.25f);
-        serumVial.GetComponent<Renderer>().material.color = Color.red;
+        ApplyCutsceneMaterial(serumVial, Color.red);
         stageActors.Add(serumVial);
 
         GameObject hero = CreateActor("HeroVampireTransformed", new Vector3(0f, 1f, 0f), new Color(0.18f, 0.05f, 0.05f), PrimitiveType.Capsule);
@@ -196,7 +196,11 @@ public class CutsceneDirector : MonoBehaviour
 
         serumVial.SetActive(false);
         ProceduralAudio.Instance?.PlaySerumInject();
-        hero.GetComponent<Renderer>().material.color = new Color(0.85f, 0.08f, 0.12f);
+        Renderer heroRenderer = hero.GetComponentInChildren<Renderer>();
+        if (heroRenderer != null)
+        {
+            heroRenderer.material.color = new Color(0.85f, 0.08f, 0.12f);
+        }
 
         dialogueDone = false;
         var scene3Climax = new List<DialogueLine>
@@ -240,9 +244,25 @@ public class CutsceneDirector : MonoBehaviour
         b.name = name;
         b.transform.position = pos;
         b.transform.localScale = scale;
-        b.GetComponent<Renderer>().material.color = col;
+        ApplyCutsceneMaterial(b, col);
         stageActors.Add(b);
         return b;
+    }
+
+    private void ApplyCutsceneMaterial(GameObject gameObject, Color color)
+    {
+        Renderer renderer = gameObject.GetComponent<Renderer>();
+        if (renderer == null) return;
+
+        Material styledMaterial = EnvironmentStyler.Instance?.GetStyledMaterial("cutscene", color);
+        if (styledMaterial != null)
+        {
+            renderer.material = styledMaterial;
+        }
+        else
+        {
+            renderer.material.color = color;
+        }
     }
 
     private GameObject CreateActor(string name, Vector3 pos, Color col, PrimitiveType prim)
@@ -268,7 +288,7 @@ public class CutsceneDirector : MonoBehaviour
         GameObject a = GameObject.CreatePrimitive(prim);
         a.name = name;
         a.transform.position = pos;
-        a.GetComponent<Renderer>().material.color = col;
+        ApplyCutsceneMaterial(a, col);
         stageActors.Add(a);
         return a;
     }

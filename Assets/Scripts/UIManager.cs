@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
@@ -8,6 +10,14 @@ public class UIManager : MonoBehaviour
     private GameObject hudRoot;
     private GameObject gameOverRoot;
     private GameObject victoryRoot;
+    private GameObject pauseRoot;
+    private GameObject mainMenuRoot;
+    private GameObject mainMenuContent;
+    private GameObject settingsMenuContent;
+    private GameObject creditsMenuContent;
+    private Button startGameButton;
+    private Button continueButton;
+    private Button fullscreenButton;
 
     // Subtitle & Dialogue Box
     private GameObject subtitleBox;
@@ -17,6 +27,7 @@ public class UIManager : MonoBehaviour
     // HUD Elements
     private Image healthBarFill;
     private Image bloodBarFill;
+    private Text bloodLevelText;
     private Text serumStatusText;
     private Text timeOfDayText;
     private Text abilityHelpText;
@@ -31,9 +42,12 @@ public class UIManager : MonoBehaviour
     private Text gameOverTitleText;
     private Text gameOverReasonText;
     private Text gameOverActionText;
+    private Text masterVolumeValueText;
 
     private Font gameFont;
     private Sprite solidSprite;
+    private float masterVolume = 1f;
+    private bool fullscreen;
 
     private void Awake()
     {
@@ -47,6 +61,11 @@ public class UIManager : MonoBehaviour
         gameFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (gameFont == null) gameFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
+        masterVolume = PlayerPrefs.GetFloat("NightboundMasterVolume", AudioListener.volume);
+        fullscreen = PlayerPrefs.GetInt("NightboundFullscreen", Screen.fullScreen ? 1 : 0) == 1;
+        AudioListener.volume = masterVolume;
+        Screen.fullScreen = fullscreen;
+
         solidSprite = CreateSolidSprite();
         BuildAllUI();
     }
@@ -56,8 +75,9 @@ public class UIManager : MonoBehaviour
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player != null && hudRoot != null && hudRoot.activeSelf)
         {
-            if (healthBarFill != null) healthBarFill.fillAmount = player.currentHealth / player.maxHealth;
-            if (bloodBarFill != null) bloodBarFill.fillAmount = player.currentBlood / player.maxBlood;
+            if (healthBarFill != null) healthBarFill.fillAmount = player.maxHealth > 0f ? Mathf.Clamp01(player.currentHealth / player.maxHealth) : 0f;
+            if (bloodBarFill != null) bloodBarFill.fillAmount = player.maxBlood > 0f ? Mathf.Clamp01(player.currentBlood / player.maxBlood) : 0f;
+            if (bloodLevelText != null) bloodLevelText.text = $"BLOOD  {Mathf.CeilToInt(player.currentBlood)}/{Mathf.CeilToInt(player.maxBlood)}";
 
             // Serum Status
             if (serumStatusText != null)
@@ -115,11 +135,51 @@ public class UIManager : MonoBehaviour
         if (hudRoot != null) hudRoot.SetActive(true);
         if (gameOverRoot != null) gameOverRoot.SetActive(false);
         if (victoryRoot != null) victoryRoot.SetActive(false);
+        HideMainMenu();
+        PlayerController player = FindAnyObjectByType<PlayerController>();
+        if (player != null)
+        {
+            if (healthBarFill != null) healthBarFill.fillAmount = player.maxHealth > 0f ? Mathf.Clamp01(player.currentHealth / player.maxHealth) : 0f;
+            if (bloodBarFill != null) bloodBarFill.fillAmount = player.maxBlood > 0f ? Mathf.Clamp01(player.currentBlood / player.maxBlood) : 0f;
+            if (bloodLevelText != null) bloodLevelText.text = $"BLOOD  {Mathf.CeilToInt(player.currentBlood)}/{Mathf.CeilToInt(player.maxBlood)}";
+        }
+    }
+
+    public void HideMainMenu()
+    {
+        if (mainMenuRoot != null) mainMenuRoot.SetActive(false);
+    }
+
+    public void HideMenusForCutscene()
+    {
+        HideMainMenu();
+        if (gameOverRoot != null) gameOverRoot.SetActive(false);
+        if (victoryRoot != null) victoryRoot.SetActive(false);
+        if (pauseRoot != null) pauseRoot.SetActive(false);
     }
 
     public void HideHUD()
     {
         if (hudRoot != null) hudRoot.SetActive(false);
+    }
+
+    public void ShowPause()
+    {
+        if (pauseRoot != null) pauseRoot.SetActive(true);
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    public void HidePause()
+    {
+        if (pauseRoot != null) pauseRoot.SetActive(false);
+        if (GameManager.Instance != null &&
+            GameManager.Instance.currentState != GameManager.GameState.GameOver &&
+            GameManager.Instance.currentState != GameManager.GameState.Victory)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
     }
 
     public void SetSubtitleText(string speaker, string dialogue)
@@ -166,17 +226,36 @@ public class UIManager : MonoBehaviour
     public void ShowVictory()
     {
         HideHUD();
+        if (mainMenuRoot != null) mainMenuRoot.SetActive(false);
         if (victoryRoot != null) victoryRoot.SetActive(true);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+        SelectButton(continueButton);
+    }
+
+    public void ShowMainMenu()
+    {
+        HideHUD();
+        if (gameOverRoot != null) gameOverRoot.SetActive(false);
+        if (victoryRoot != null) victoryRoot.SetActive(false);
+        if (pauseRoot != null) pauseRoot.SetActive(false);
+        if (subtitleBox != null) subtitleBox.SetActive(false);
+        if (mainMenuRoot != null) mainMenuRoot.SetActive(true);
+        ShowMainMenuContent();
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        SelectButton(startGameButton);
     }
 
     private void BuildAllUI()
     {
+        EnsureEventSystem();
+
         GameObject canvasObj = new GameObject("NIGHTBOUND_HUD_Canvas");
         Canvas canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvasObj.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         canvasObj.AddComponent<GraphicRaycaster>();
 
         Transform c = canvasObj.transform;
@@ -184,6 +263,202 @@ public class UIManager : MonoBehaviour
         BuildSubtitleBox(c);
         BuildGameOverUI(c);
         BuildVictoryUI(c);
+        BuildPauseUI(c);
+        BuildMainMenuUI(c);
+    }
+
+    private void BuildMainMenuUI(Transform parent)
+    {
+        mainMenuRoot = CreatePanel(parent, "MainMenuScreen", new Color(0.015f, 0.012f, 0.025f, 0.97f));
+        mainMenuRoot.GetComponent<Image>().raycastTarget = false;
+
+        Text title = CreateText(mainMenuRoot.transform, "N I G H T B O U N D", 54, TextAnchor.MiddleCenter);
+        title.rectTransform.anchorMin = new Vector2(0.5f, 0.72f);
+        title.rectTransform.anchorMax = new Vector2(0.5f, 0.72f);
+        title.rectTransform.anchoredPosition = Vector2.zero;
+        title.rectTransform.sizeDelta = new Vector2(900f, 90f);
+        title.color = new Color(0.86f, 0.12f, 0.19f);
+
+        Text subtitle = CreateText(mainMenuRoot.transform, "A vampire's hunt for vengeance", 18, TextAnchor.MiddleCenter);
+        subtitle.rectTransform.anchorMin = new Vector2(0.5f, 0.64f);
+        subtitle.rectTransform.anchorMax = new Vector2(0.5f, 0.64f);
+        subtitle.rectTransform.anchoredPosition = Vector2.zero;
+        subtitle.rectTransform.sizeDelta = new Vector2(700f, 40f);
+        subtitle.color = new Color(0.78f, 0.74f, 0.75f);
+
+        mainMenuContent = CreateMenuView(mainMenuRoot.transform, "MainMenuOptions");
+        startGameButton = CreateMenuButton(mainMenuContent.transform, "START GAME", 65f, () => GameManager.Instance?.StartPrologueCutscene());
+        CreateMenuButton(mainMenuContent.transform, "SETTINGS", 0f, ShowSettingsContent);
+        CreateMenuButton(mainMenuContent.transform, "CREDITS", -65f, ShowCreditsContent);
+        CreateMenuButton(mainMenuContent.transform, "QUIT", -130f, Application.Quit);
+
+        settingsMenuContent = CreateMenuView(mainMenuRoot.transform, "SettingsOptions");
+        CreateMenuHeading(settingsMenuContent.transform, "SETTINGS");
+        Text volumeText = CreateMenuText(settingsMenuContent.transform, "MASTER VOLUME", 18, new Vector2(0f, 45f));
+        volumeText.color = new Color(0.86f, 0.82f, 0.82f);
+        Text volumeValue = CreateMenuText(settingsMenuContent.transform, "", 18, new Vector2(0f, -20f));
+        Button volumeDown = CreateMenuButton(settingsMenuContent.transform, "VOLUME -", 0f, () => AdjustMasterVolume(-0.1f));
+        volumeDown.GetComponent<RectTransform>().anchoredPosition = new Vector2(-200f, -20f);
+        Button volumeUp = CreateMenuButton(settingsMenuContent.transform, "VOLUME +", 0f, () => AdjustMasterVolume(0.1f));
+        volumeUp.GetComponent<RectTransform>().anchoredPosition = new Vector2(200f, -20f);
+        volumeValue.rectTransform.sizeDelta = new Vector2(90f, 48f);
+        volumeText.gameObject.name = "MasterVolumeLabel";
+        volumeValue.gameObject.name = "MasterVolumeValue";
+        masterVolumeValueText = volumeValue;
+        UpdateMasterVolumeLabel();
+        fullscreenButton = CreateMenuButton(settingsMenuContent.transform, "", -95f, ToggleFullscreen);
+        UpdateFullscreenButton();
+        CreateMenuButton(settingsMenuContent.transform, "BACK", -165f, ShowMainMenuContent);
+
+        creditsMenuContent = CreateMenuView(mainMenuRoot.transform, "CreditsOptions");
+        CreateMenuHeading(creditsMenuContent.transform, "CREDITS");
+        Text creditLines = CreateMenuText(creditsMenuContent.transform,
+            "NIGHTBOUND\nA story of Rayan Malik and Kaleem Rana\n\nThank you for playing.",
+            20, new Vector2(0f, -5f));
+        creditLines.rectTransform.sizeDelta = new Vector2(700f, 180f);
+        CreateMenuButton(creditsMenuContent.transform, "BACK", -150f, ShowMainMenuContent);
+
+        mainMenuRoot.SetActive(false);
+    }
+
+    private void EnsureEventSystem()
+    {
+        EventSystem eventSystem = FindAnyObjectByType<EventSystem>();
+        if (eventSystem == null)
+        {
+            GameObject eventSystemObject = new GameObject("NIGHTBOUND_EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+            InputSystemUIInputModule inputModule = eventSystemObject.GetComponent<InputSystemUIInputModule>();
+            inputModule.AssignDefaultActions();
+        }
+        else if (eventSystem.GetComponent<InputSystemUIInputModule>() == null &&
+                 eventSystem.GetComponent<BaseInputModule>() == null)
+        {
+            InputSystemUIInputModule inputModule = eventSystem.gameObject.AddComponent<InputSystemUIInputModule>();
+            inputModule.AssignDefaultActions();
+        }
+    }
+
+    private GameObject CreateMenuView(Transform parent, string name)
+    {
+        GameObject view = new GameObject(name, typeof(RectTransform));
+        view.transform.SetParent(parent, false);
+        Stretch(view.GetComponent<RectTransform>());
+        return view;
+    }
+
+    private Button CreateMenuButton(Transform parent, string label, float y, UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject buttonObject = new GameObject(label.Replace(" ", string.Empty) + "Button", typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
+        buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
+        buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+        buttonRect.pivot = new Vector2(0.5f, 0.5f);
+        buttonRect.anchoredPosition = new Vector2(0f, y);
+        buttonRect.sizeDelta = new Vector2(270f, 42f);
+
+        Image image = buttonObject.GetComponent<Image>();
+        image.color = new Color(0.12f, 0.035f, 0.05f, 0.96f);
+        Button button = buttonObject.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.colors = new ColorBlock
+        {
+            normalColor = image.color,
+            highlightedColor = new Color(0.38f, 0.08f, 0.11f, 1f),
+            pressedColor = new Color(0.65f, 0.12f, 0.16f, 1f),
+            selectedColor = new Color(0.38f, 0.08f, 0.11f, 1f),
+            disabledColor = new Color(0.2f, 0.2f, 0.2f, 0.5f),
+            colorMultiplier = 1f,
+            fadeDuration = 0.12f
+        };
+        button.onClick.AddListener(onClick);
+
+        Text text = CreateText(buttonObject.transform, label, 16, TextAnchor.MiddleCenter);
+        Stretch(text.rectTransform);
+        text.rectTransform.sizeDelta = Vector2.zero;
+        text.color = new Color(0.94f, 0.88f, 0.86f);
+        text.raycastTarget = false;
+        return button;
+    }
+
+    private Text CreateMenuText(Transform parent, string content, int fontSize, Vector2 position)
+    {
+        Text text = CreateText(parent, content, fontSize, TextAnchor.MiddleCenter);
+        text.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        text.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        text.rectTransform.anchoredPosition = position;
+        text.rectTransform.sizeDelta = new Vector2(700f, 48f);
+        return text;
+    }
+
+    private void CreateMenuHeading(Transform parent, string content)
+    {
+        Text heading = CreateMenuText(parent, content, 36, new Vector2(0f, 140f));
+        heading.color = new Color(0.86f, 0.12f, 0.19f);
+    }
+
+    private void ShowMainMenuContent()
+    {
+        if (mainMenuRoot != null) mainMenuRoot.SetActive(true);
+        if (mainMenuContent != null) mainMenuContent.SetActive(true);
+        if (settingsMenuContent != null) settingsMenuContent.SetActive(false);
+        if (creditsMenuContent != null) creditsMenuContent.SetActive(false);
+        SelectButton(startGameButton);
+    }
+
+    private void ShowSettingsContent()
+    {
+        if (mainMenuContent != null) mainMenuContent.SetActive(false);
+        if (settingsMenuContent != null) settingsMenuContent.SetActive(true);
+        if (creditsMenuContent != null) creditsMenuContent.SetActive(false);
+        SelectButton(fullscreenButton);
+    }
+
+    private void ShowCreditsContent()
+    {
+        if (mainMenuContent != null) mainMenuContent.SetActive(false);
+        if (settingsMenuContent != null) settingsMenuContent.SetActive(false);
+        if (creditsMenuContent != null) creditsMenuContent.SetActive(true);
+    }
+
+    private void AdjustMasterVolume(float adjustment)
+    {
+        masterVolume = Mathf.Clamp01(masterVolume + adjustment);
+        AudioListener.volume = masterVolume;
+        PlayerPrefs.SetFloat("NightboundMasterVolume", masterVolume);
+        PlayerPrefs.Save();
+        UpdateMasterVolumeLabel();
+    }
+
+    private void UpdateMasterVolumeLabel()
+    {
+        if (masterVolumeValueText != null)
+            masterVolumeValueText.text = $"{Mathf.RoundToInt(masterVolume * 100f)}%";
+    }
+
+    private void ToggleFullscreen()
+    {
+        fullscreen = !fullscreen;
+        Screen.fullScreen = fullscreen;
+        PlayerPrefs.SetInt("NightboundFullscreen", fullscreen ? 1 : 0);
+        PlayerPrefs.Save();
+        UpdateFullscreenButton();
+    }
+
+    private void UpdateFullscreenButton()
+    {
+        if (fullscreenButton == null) return;
+        Text label = fullscreenButton.GetComponentInChildren<Text>();
+        if (label != null) label.text = fullscreen ? "FULLSCREEN: ON" : "FULLSCREEN: OFF";
+    }
+
+    private static void SelectButton(Button button)
+    {
+        if (button != null && EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+            EventSystem.current.SetSelectedGameObject(button.gameObject);
+        }
     }
 
     private void BuildSubtitleBox(Transform parent)
@@ -218,8 +493,15 @@ public class UIManager : MonoBehaviour
             new Color(0.15f, 0.02f, 0.02f, 0.85f), new Color(0.85f, 0.1f, 0.15f));
 
         // Blood Bar (Bottom Left)
-        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(140f, 36f), new Vector2(220f, 15f),
+        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(120f, 36f), new Vector2(190f, 13f),
             new Color(0.08f, 0.02f, 0.15f, 0.85f), new Color(0.6f, 0.08f, 0.85f));
+        bloodLevelText = CreateText(hudRoot.transform, "BLOOD  70/100", 14, TextAnchor.MiddleLeft);
+        bloodLevelText.rectTransform.anchorMin = Vector2.zero;
+        bloodLevelText.rectTransform.anchorMax = Vector2.zero;
+        bloodLevelText.rectTransform.pivot = new Vector2(0f, 0.5f);
+        bloodLevelText.rectTransform.anchoredPosition = new Vector2(225f, 36f);
+        bloodLevelText.rectTransform.sizeDelta = new Vector2(130f, 24f);
+        bloodLevelText.color = new Color(0.82f, 0.58f, 1f);
 
         // Serum Status (Bottom Left)
         serumStatusText = CreateText(hudRoot.transform, "VAMPIRE FORM - SERUM: 02:00", 16, TextAnchor.MiddleLeft);
@@ -303,14 +585,32 @@ public class UIManager : MonoBehaviour
         title.rectTransform.anchoredPosition = new Vector2(0f, 80f);
         title.color = new Color(0.9f, 0.8f, 0.2f);
 
-        Text desc = CreateText(victoryRoot.transform, "The Syndicate Boss is dead. Your family is avenged in the dark.", 18, TextAnchor.MiddleCenter);
+        Text desc = CreateText(victoryRoot.transform, "The Syndicate is broken. Rayan's story can begin again.", 18, TextAnchor.MiddleCenter);
         desc.rectTransform.anchoredPosition = new Vector2(0f, 20f);
 
-        Text replay = CreateText(victoryRoot.transform, "[ PRESS 'R' TO PLAY AGAIN ]  |  [ ESC TO QUIT ]", 20, TextAnchor.MiddleCenter);
-        replay.rectTransform.anchoredPosition = new Vector2(0f, -70f);
-        replay.color = new Color(0.3f, 0.85f, 1f);
+        continueButton = CreateMenuButton(victoryRoot.transform, "CONTINUE", -65f,
+            () => GameManager.Instance?.ContinueAfterVictory());
+        continueButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(-165f, -65f);
+        CreateMenuButton(victoryRoot.transform, "MAIN MENU", -65f,
+            () => GameManager.Instance?.ReturnToMainMenu()).GetComponent<RectTransform>().anchoredPosition = new Vector2(165f, -65f);
 
         victoryRoot.SetActive(false);
+    }
+
+    private void BuildPauseUI(Transform parent)
+    {
+        pauseRoot = CreatePanel(parent, "PauseScreen", new Color(0.02f, 0.025f, 0.04f, 0.94f));
+
+        Text title = CreateText(pauseRoot.transform, "PAUSED", 38, TextAnchor.MiddleCenter);
+        title.rectTransform.anchoredPosition = new Vector2(0f, 80f);
+        title.color = new Color(0.85f, 0.8f, 0.6f);
+
+        Text actions = CreateText(pauseRoot.transform, "[ ESC ] RESUME\n[ R ] RESTART LEVEL\n[ Q ] QUIT", 20, TextAnchor.MiddleCenter);
+        actions.rectTransform.anchoredPosition = new Vector2(0f, -15f);
+        actions.rectTransform.sizeDelta = new Vector2(700f, 150f);
+        actions.color = Color.white;
+
+        pauseRoot.SetActive(false);
     }
 
     private Image CreateBar(Transform parent, string name, Vector2 pos, Vector2 size, Color bgColor, Color fillColor)
@@ -327,7 +627,7 @@ public class UIManager : MonoBehaviour
         GameObject fillObj = new GameObject(name + "_Fill", typeof(RectTransform), typeof(Image));
         fillObj.transform.SetParent(bgObj.transform, false);
         Stretch(fillObj.GetComponent<RectTransform>());
-        Image fillImg = fillObj.AddComponent<Image>();
+        Image fillImg = fillObj.GetComponent<Image>();
         fillImg.sprite = solidSprite;
         fillImg.type = Image.Type.Filled;
         fillImg.fillMethod = Image.FillMethod.Horizontal;
