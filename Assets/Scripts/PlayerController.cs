@@ -76,16 +76,40 @@ public class PlayerController : MonoBehaviour
         if (humanPrefab != null)
         {
             humanVisual = Instantiate(humanPrefab, transform);
-            humanVisual.transform.localPosition = new Vector3(0f, -0.9f, 0f);
+            humanVisual.transform.localPosition = Vector3.zero;
             humanVisual.transform.localRotation = Quaternion.identity;
+            if (!CharacterModelUtility.PrepareVisual(humanVisual, "Characters/HumanHero",
+                    controller.height, transform.TransformPoint(controller.center).y))
+            {
+                Destroy(humanVisual);
+                humanVisual = null;
+            }
         }
 
-        GameObject vampirePrefab = Resources.Load<GameObject>("Characters/VampireHero");
+        GameObject vampirePrefab = Resources.Load<GameObject>("Characters/RayanAfterSerum");
+        string vampireResourcePath = "Characters/RayanAfterSerum";
+        if (vampirePrefab == null)
+        {
+            vampirePrefab = Resources.Load<GameObject>("Characters/VampireHero");
+            vampireResourcePath = "Characters/VampireHero";
+        }
         if (vampirePrefab != null)
         {
             vampireVisual = Instantiate(vampirePrefab, transform);
-            vampireVisual.transform.localPosition = new Vector3(0f, -0.9f, 0f);
+            vampireVisual.transform.localPosition = Vector3.zero;
             vampireVisual.transform.localRotation = Quaternion.identity;
+            if (!CharacterModelUtility.PrepareVisual(vampireVisual, vampireResourcePath,
+                    controller.height, transform.TransformPoint(controller.center).y))
+            {
+                Destroy(vampireVisual);
+                vampireVisual = null;
+            }
+        }
+
+        if (humanVisual != null || vampireVisual != null)
+        {
+            Renderer capsuleRenderer = GetComponent<Renderer>();
+            if (capsuleRenderer != null) capsuleRenderer.enabled = false;
         }
 
         UpdateVisualForm();

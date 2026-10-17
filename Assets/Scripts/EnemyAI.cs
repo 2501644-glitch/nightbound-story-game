@@ -32,6 +32,7 @@ public class EnemyAI : MonoBehaviour
     private int currentPatrolIndex = 0;
     private float stunTimer = 0f;
     private float nextAttackTime = 0f;
+    private static int nextVisualVariant;
 
     private void Awake()
     {
@@ -49,15 +50,25 @@ public class EnemyAI : MonoBehaviour
             originalColor = bodyRenderer.material.color;
         }
 
-        GameObject thugPrefab = Resources.Load<GameObject>("Characters/SyndicateThug");
+        int variant = nextVisualVariant % 6 + 1;
+        nextVisualVariant++;
+        string modelResourcePath = $"Characters/Enemy{variant}";
+        GameObject thugPrefab = Resources.Load<GameObject>(modelResourcePath);
+        if (thugPrefab == null)
+        {
+            modelResourcePath = "Characters/SyndicateThug";
+            thugPrefab = Resources.Load<GameObject>(modelResourcePath);
+        }
+
         if (thugPrefab != null)
         {
             Renderer defR = GetComponent<Renderer>();
             if (defR != null) defR.enabled = false;
 
             GameObject model = Instantiate(thugPrefab, transform);
-            model.transform.localPosition = new Vector3(0f, -0.9f, 0f);
+            model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
+            CharacterModelUtility.PrepareVisual(model, modelResourcePath, 1.8f, transform.position.y);
             Renderer mr = model.GetComponentInChildren<Renderer>();
             if (mr != null)
             {

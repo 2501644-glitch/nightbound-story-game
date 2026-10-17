@@ -27,16 +27,23 @@ public class BossController : MonoBehaviour
         currentHealth = maxHealth;
         bossRenderer = GetComponentInChildren<Renderer>();
 
-        GameObject bossPrefab = Resources.Load<GameObject>("Characters/SyndicateBoss");
+        string modelResourcePath = "Characters/Enemy6";
+        GameObject bossPrefab = Resources.Load<GameObject>(modelResourcePath);
+        if (bossPrefab == null)
+        {
+            modelResourcePath = "Characters/SyndicateBoss";
+            bossPrefab = Resources.Load<GameObject>(modelResourcePath);
+        }
+
         if (bossPrefab != null)
         {
             Renderer defR = GetComponent<Renderer>();
             if (defR != null) defR.enabled = false;
 
             GameObject model = Instantiate(bossPrefab, transform);
-            model.transform.localPosition = new Vector3(0f, -1.2f, 0f);
+            model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
-            model.transform.localScale = Vector3.one * 1.35f;
+            CharacterModelUtility.PrepareVisual(model, modelResourcePath, 2.7f, transform.position.y);
             Renderer mr = model.GetComponentInChildren<Renderer>();
             if (mr != null) bossRenderer = mr;
         }
