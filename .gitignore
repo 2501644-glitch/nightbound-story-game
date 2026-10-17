@@ -1,0 +1,43 @@
+# Unity-generated files
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# IDE and editor-local files
+.vs/
+.vscode/
+.idea/
+.gradle/
+
+# Version-control metadata
+.git/
+.plastic/
+ignore.conf
+
+# Root Unity build and test logs
+/build.log
+/cli_test.log
+
+# Unity-generated project and IDE files
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.tmp_proj
+*.pidb
+*.svd
+*.pdb
+sysinfo.txt
+crashlytics-build.properties
+
+# Generated build packages
+*.apk
+*.aab
+*.app
