@@ -1,15 +1,13 @@
 @echo off
-echo ========================================================
-echo   NIGHTBOUND - Launching Standalone Game
-echo ========================================================
+setlocal
 
-set EXE_PATH="%~dp0Builds\Nightbound.exe"
+set "GAME_EXE=%~dp0Builds\Nightbound.exe"
 
-if not exist %EXE_PATH% (
-    echo [ERROR] %EXE_PATH% not found!
-    echo Please run build_game.bat first.
-    exit /b 1
+if not exist "%GAME_EXE%" (
+    echo [ERROR] Game not found: "%GAME_EXE%"
+    echo Run build_game.bat first.
+    endlocal & exit /b 1
 )
 
-start "" %EXE_PATH%
-echo [SUCCESS] Nightbound launched!
+start "" "%GAME_EXE%"
+endlocal & exit /b 0

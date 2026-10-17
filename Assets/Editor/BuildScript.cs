@@ -1,35 +1,44 @@
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using System.IO;
 
 public static class BuildScript
 {
     [MenuItem("Nightbound/Build Windows Standalone")]
-    public static void BuildWindows()
+    public static void BuildWindows() => BuildPlayer(BuildTarget.StandaloneWindows64, "Nightbound.exe");
+
+    [MenuItem("Nightbound/Build macOS Standalone")]
+    public static void BuildMacOS() => BuildPlayer(BuildTarget.StandaloneOSX, "Nightbound.app");
+
+    private static void BuildPlayer(BuildTarget target, string outputName)
     {
-        string buildPath = "Builds/Nightbound.exe";
+        string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+        string buildDirectory = Path.Combine(projectRoot, "Builds");
+        string buildPath = Path.Combine(buildDirectory, outputName);
         string[] scenes = { "Assets/Scenes/SampleScene.unity" };
 
-        Debug.Log("Starting NIGHTBOUND CLI Build...");
+        Directory.CreateDirectory(buildDirectory);
+        Debug.Log($"Starting NIGHTBOUND {target} build...");
 
-        BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
+        BuildPlayerOptions options = new BuildPlayerOptions
         {
             scenes = scenes,
             locationPathName = buildPath,
-            target = BuildTarget.StandaloneWindows64,
+            target = target,
             options = BuildOptions.None
         };
 
-        BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+        BuildReport report = BuildPipeline.BuildPlayer(options);
         BuildSummary summary = report.summary;
 
         if (summary.result == BuildResult.Succeeded)
         {
-            Debug.Log($"NIGHTBOUND build succeeded! Total size: {summary.totalSize} bytes. Location: {buildPath}");
+            Debug.Log($"NIGHTBOUND {target} build succeeded! Total size: {summary.totalSize} bytes. Location: {buildPath}");
         }
         else
         {
-            Debug.LogError($"NIGHTBOUND build failed with {summary.totalErrors} errors!");
+            Debug.LogError($"NIGHTBOUND {target} build failed with {summary.totalErrors} errors!");
             EditorApplication.Exit(1);
         }
     }
