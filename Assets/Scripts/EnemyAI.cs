@@ -28,15 +28,18 @@ public class EnemyAI : MonoBehaviour
 
     private NavMeshAgent agent;
     private PlayerController player;
-    private Renderer bodyRenderer;
-    private Color originalColor = Color.gray;
+    private Animator characterAnimator;
+    private readonly List<Material> factionMaterials = new List<Material>();
+    private readonly List<Color> originalMaterialColors = new List<Color>();
 
     private Vector3[] patrolPoints;
     private int currentPatrolIndex = 0;
     private float stunTimer = 0f;
     private float nextAttackTime = 0f;
+    private bool animationStateInitialized;
+    private bool isAnimatingAttack;
+    private float attackAnimationEndTime;
     private Animator deathAnimator;
-    private AnimatorOverrideController deathOverrideController;
     private float deathAnimationEndTime;
     private bool despawnAfterDeath;
 
@@ -48,12 +51,6 @@ public class EnemyAI : MonoBehaviour
         {
             agent.speed = patrolSpeed;
             agent.stoppingDistance = 1.2f;
-        }
-
-        bodyRenderer = GetComponentInChildren<Renderer>();
-        if (bodyRenderer != null && bodyRenderer.material != null)
-        {
-            originalColor = bodyRenderer.material.color;
         }
 
         int variant = nextVisualVariant % 6 + 1;
@@ -75,13 +72,12 @@ public class EnemyAI : MonoBehaviour
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
             CharacterModelUtility.PrepareVisual(model, modelResourcePath, 1.8f, transform.position.y);
-            Renderer mr = model.GetComponentInChildren<Renderer>();
-            if (mr != null)
-            {
-                bodyRenderer = mr;
-                if (mr.material != null) originalColor = mr.material.color;
-            }
+            TintFactionModel(model, variant);
         }
+
+        characterAnimator = CharacterModelUtility.FindAnimator(gameObject);
+        CharacterModelUtility.PlayEnemyIdle(characterAnimator);
+        animationStateInitialized = characterAnimator != null;
     }
 
     private void Start()
@@ -92,7 +88,7 @@ public class EnemyAI : MonoBehaviour
 
     public void SetPatrolRoute(Vector3[] points)
     {
-        patrolPoints = points;
+        patrolPoints = ExpandPatrolRoute(points);
         currentPatrolIndex = 0;
         if (agent != null && agent.isOnNavMesh && patrolPoints != null && patrolPoints.Length > 0)
         {
@@ -105,17 +101,30 @@ public class EnemyAI : MonoBehaviour
         if (Time.timeScale <= 0f) return;
         if (!isAlive)
         {
+            if (despawnAfterDeath && Time.time >= deathAnimationEndTime)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
             if (deathAnimator != null && Time.time >= deathAnimationEndTime)
             {
                 deathAnimator.speed = 0f;
                 deathAnimator = null;
-                if (despawnAfterDeath) Destroy(gameObject);
-            }
-            else if (despawnAfterDeath && deathAnimator == null)
-            {
-                Destroy(gameObject);
             }
             return;
+        }
+
+        if (isAnimatingAttack)
+        {
+            if (Time.time < attackAnimationEndTime)
+            {
+                FacePlayer();
+                return;
+            }
+
+            isAnimatingAttack = false;
+            if (agent != null && agent.enabled && agent.isOnNavMesh) agent.isStopped = false;
         }
 
         if (isStunned)
@@ -178,6 +187,7 @@ public class EnemyAI : MonoBehaviour
         {
             agent.speed = chaseSpeed;
             agent.SetDestination(player.transform.position);
+            UpdateLocomotionAnimation(agent.velocity.sqrMagnitude > 0.04f);
         }
         else
         {
@@ -187,13 +197,16 @@ public class EnemyAI : MonoBehaviour
             {
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir.normalized), 8f * Time.deltaTime);
                 transform.position += dir.normalized * (chaseSpeed * Time.deltaTime);
+                UpdateLocomotionAnimation(true);
             }
+            else UpdateLocomotionAnimation(false);
         }
 
         float dist = Vector3.Distance(transform.position, player.transform.position);
         if (dist <= attackRange && Time.time >= nextAttackTime)
         {
             nextAttackTime = Time.time + attackCooldown;
+            BeginAttackAnimation();
             ProceduralAudio.Instance?.PlayPunch();
             ProceduralAudio.Instance?.PlayVoiceBlip(0.85f);
             player.TakeDamage(baseAttackDamage * damageMultiplier);
@@ -213,6 +226,7 @@ public class EnemyAI : MonoBehaviour
                 currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
                 agent.SetDestination(patrolPoints[currentPatrolIndex]);
             }
+            UpdateLocomotionAnimation(agent.velocity.sqrMagnitude > 0.04f);
         }
         else
         {
@@ -221,11 +235,13 @@ public class EnemyAI : MonoBehaviour
             if (diff.magnitude <= 0.5f)
             {
                 currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
+                UpdateLocomotionAnimation(false);
             }
             else
             {
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(diff.normalized), 5f * Time.deltaTime);
                 transform.position += diff.normalized * (patrolSpeed * Time.deltaTime);
+                UpdateLocomotionAnimation(true);
             }
         }
     }
@@ -236,11 +252,8 @@ public class EnemyAI : MonoBehaviour
         currentHealth -= amount;
         isChasingPlayer = true;
 
-        if (bodyRenderer != null && bodyRenderer.material != null)
-        {
-            bodyRenderer.material.color = Color.white;
-            Invoke(nameof(RestoreColor), 0.15f);
-        }
+        SetFactionColor(new Color(0.82f, 0.78f, 1f));
+        Invoke(nameof(RestoreColor), 0.15f);
 
         if (currentHealth <= 0f)
         {
@@ -250,10 +263,7 @@ public class EnemyAI : MonoBehaviour
 
     private void RestoreColor()
     {
-        if (bodyRenderer != null && bodyRenderer.material != null && isAlive)
-        {
-            bodyRenderer.material.color = isStunned ? new Color(1f, 0.9f, 0.2f) : originalColor;
-        }
+        if (isAlive) RestoreFactionColors();
     }
 
     public void Stun(float duration)
@@ -261,36 +271,34 @@ public class EnemyAI : MonoBehaviour
         isStunned = true;
         stunTimer = duration;
         if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
-        if (bodyRenderer != null && bodyRenderer.material != null)
-            bodyRenderer.material.color = new Color(1f, 0.9f, 0.2f);
+        CharacterModelUtility.PlayEnemyIdle(characterAnimator);
+        isWalkingAnimation = false;
+        SetFactionColor(new Color(1f, 0.9f, 0.2f));
     }
 
     private void EndStun()
     {
         isStunned = false;
         if (agent != null && agent.isOnNavMesh) agent.isStopped = false;
-        if (bodyRenderer != null && bodyRenderer.material != null)
-            bodyRenderer.material.color = originalColor;
+        RestoreFactionColors();
+        animationStateInitialized = false;
     }
 
-    public void InstantKill()
-    {
-        despawnAfterDeath = true;
-        Die();
-        if (deathAnimator == null) Destroy(gameObject);
-    }
+    public void InstantKill() => Die(true);
 
-    private void Die()
+    private void Die(bool removeAfterDeath = false)
     {
         if (!isAlive) return;
         isAlive = false;
+        despawnAfterDeath = removeAfterDeath;
 
-        if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
+        if (agent != null)
+        {
+            if (agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
+            agent.enabled = false;
+        }
 
-        if (bodyRenderer != null && bodyRenderer.material != null)
-            bodyRenderer.material.color = new Color(0.2f, 0.02f, 0.02f);
-
-        bool hasDeathAnimation = PlayDeathAnimation();
+        bool hasDeathAnimation = StartDeathAnimation();
 
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
@@ -299,58 +307,128 @@ public class EnemyAI : MonoBehaviour
 
         if (!hasDeathAnimation)
         {
-            Animator animator = GetComponentInChildren<Animator>(true);
-            if (animator != null) animator.speed = 0f;
+            if (characterAnimator != null)
+            {
+                CharacterModelUtility.PlayEnemyIdle(characterAnimator);
+                characterAnimator.speed = 0f;
+            }
+
+            deathAnimationEndTime = Time.time;
         }
     }
 
-    private bool PlayDeathAnimation()
+    private bool StartDeathAnimation()
     {
-        Animator animator = GetComponentInChildren<Animator>(true);
-        RuntimeAnimatorController sourceController = animator != null ? animator.runtimeAnimatorController : null;
-        AnimationClip[] walkClips = sourceController != null ? sourceController.animationClips : null;
-        AnimationClip[] deathClips = Resources.LoadAll<AnimationClip>("Animations/exo_red@Death");
-        if (deathClips.Length == 0)
-            deathClips = Resources.LoadAll<AnimationClip>("Animations/sword and shield death");
-        if (animator == null || walkClips == null || walkClips.Length == 0 || deathClips.Length == 0)
-            return false;
+        float duration = CharacterModelUtility.PlayEnemyDeath(characterAnimator);
+        if (duration <= 0f) return false;
 
-        AnimationClip deathClip = deathClips[0];
-        deathOverrideController = new AnimatorOverrideController(sourceController);
-        var overrides = new List<KeyValuePair<AnimationClip, AnimationClip>>(walkClips.Length);
-        deathOverrideController.GetOverrides(overrides);
-        if (overrides.Count == 0)
-        {
-            Destroy(deathOverrideController);
-            deathOverrideController = null;
-            return false;
-        }
-
-        int walkClipIndex = overrides.FindIndex(pair => pair.Key != null && pair.Key.name == "Walk");
-        if (walkClipIndex < 0) walkClipIndex = 0;
-        overrides[walkClipIndex] = new KeyValuePair<AnimationClip, AnimationClip>(overrides[walkClipIndex].Key, deathClip);
-        deathOverrideController.ApplyOverrides(overrides);
-        if (agent != null)
-        {
-            if (agent.isOnNavMesh) agent.isStopped = true;
-            agent.enabled = false;
-        }
-        animator.runtimeAnimatorController = deathOverrideController;
-        animator.applyRootMotion = true;
-        animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-        animator.speed = 1f;
-        animator.enabled = true;
-        animator.Play("Walk", 0, 0f);
-        animator.Update(0f);
-
-        deathAnimator = animator;
-        deathAnimationEndTime = Time.time + deathClip.length;
+        deathAnimator = characterAnimator;
+        deathAnimationEndTime = Time.time + duration;
         return true;
+    }
+
+    private void BeginAttackAnimation()
+    {
+        FacePlayer();
+        if (agent != null && agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
+        float duration = CharacterModelUtility.PlayEnemyAttack(characterAnimator);
+        if (duration <= 0f) duration = 0.55f;
+        attackAnimationEndTime = Time.time + duration;
+        isAnimatingAttack = true;
+    }
+
+    private void FacePlayer()
+    {
+        if (player == null) return;
+        Vector3 toPlayer = player.transform.position - transform.position;
+        toPlayer.y = 0f;
+        if (toPlayer.sqrMagnitude > 0.01f)
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(toPlayer.normalized), 8f * Time.deltaTime);
+    }
+
+    private void UpdateLocomotionAnimation(bool moving)
+    {
+        if (characterAnimator == null || isAnimatingAttack || !isAlive) return;
+        if (!animationStateInitialized || moving != isWalkingAnimation)
+        {
+            if (moving) CharacterModelUtility.PlayEnemyWalk(characterAnimator);
+            else CharacterModelUtility.PlayEnemyIdle(characterAnimator);
+            isWalkingAnimation = moving;
+            animationStateInitialized = true;
+        }
+    }
+
+    private bool isWalkingAnimation;
+
+    private void TintFactionModel(GameObject model, int variant)
+    {
+        Color[] palette =
+        {
+            new Color(0.57f, 0.47f, 0.92f),
+            new Color(0.42f, 0.64f, 0.96f),
+            new Color(0.70f, 0.48f, 0.91f),
+            new Color(0.40f, 0.72f, 0.91f),
+            new Color(0.55f, 0.54f, 0.98f),
+            new Color(0.48f, 0.65f, 0.88f)
+        };
+        Color tint = palette[(variant - 1) % palette.Length];
+        foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>(true))
+        {
+            foreach (Material material in renderer.materials)
+            {
+                if (material == null) continue;
+                string colorProperty = material.HasProperty("_BaseColor") ? "_BaseColor" : (material.HasProperty("_Color") ? "_Color" : null);
+                if (colorProperty == null) continue;
+                Color baseColor = material.GetColor(colorProperty);
+                Color factionColor = new Color(baseColor.r * tint.r, baseColor.g * tint.g, baseColor.b * tint.b, baseColor.a);
+                material.SetColor(colorProperty, factionColor);
+                factionMaterials.Add(material);
+                originalMaterialColors.Add(factionColor);
+            }
+        }
+    }
+
+    private void SetFactionColor(Color color)
+    {
+        for (int i = 0; i < factionMaterials.Count; i++)
+        {
+            if (factionMaterials[i] != null) SetMaterialColor(factionMaterials[i], color);
+        }
+    }
+
+    private void RestoreFactionColors()
+    {
+        for (int i = 0; i < factionMaterials.Count; i++)
+        {
+            if (factionMaterials[i] == null) continue;
+            SetMaterialColor(factionMaterials[i], isStunned ? new Color(1f, 0.9f, 0.2f) : originalMaterialColors[i]);
+        }
+    }
+
+    private static void SetMaterialColor(Material material, Color color)
+    {
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+        else if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+    }
+
+    private static Vector3[] ExpandPatrolRoute(Vector3[] points)
+    {
+        if (points == null || points.Length != 2) return points;
+        Vector3 direction = points[1] - points[0];
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.01f) return points;
+
+        Vector3 side = Vector3.Cross(Vector3.up, direction.normalized) * Mathf.Min(1.5f, direction.magnitude * 0.18f);
+        Vector3 midpoint = (points[0] + points[1]) * 0.5f;
+        return new[] { points[0], midpoint + side, points[1], midpoint - side };
     }
 
     private void OnDestroy()
     {
-        if (deathOverrideController != null)
-            Destroy(deathOverrideController);
+        CharacterModelUtility.ReleaseAnimator(gameObject);
+        for (int i = 0; i < factionMaterials.Count; i++)
+        {
+            if (factionMaterials[i] != null) Destroy(factionMaterials[i]);
+        }
     }
 }

@@ -61,6 +61,13 @@ public class LevelBuilder : MonoBehaviour
         SpawnDumpster(new Vector3(6f, 0f, 40f), Quaternion.Euler(0f, 15f, 0f));
         SpawnProp("Environment/UrbanBarrier", new Vector3(-6f, 0f, 24f), Quaternion.identity, Vector3.one * 2.0f);
 
+        // A few cemetery details crowd the alley edges while preserving the central route.
+        SpawnProp("Environment/gravestone-cross", new Vector3(-7.5f, 0f, 13f), Quaternion.Euler(0f, -12f, 0f), Vector3.one * 1.5f);
+        SpawnProp("Environment/gravestone-broken", new Vector3(7.5f, 0f, 20f), Quaternion.Euler(0f, 18f, 0f), Vector3.one * 1.4f);
+        SpawnProp("Environment/coffin-old", new Vector3(-7.1f, 0f, 31f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.2f);
+        SpawnProp("Environment/cross-wood", new Vector3(7.4f, 0f, 34f), Quaternion.Euler(0f, -8f, 0f), Vector3.one * 1.4f);
+        SpawnProp("Environment/gravestone-decorative", new Vector3(-7.5f, 0f, 46f), Quaternion.Euler(0f, 10f, 0f), Vector3.one * 1.5f);
+
         // 3 Sodium Vapor Street Lamps
         SpawnStreetLamp(new Vector3(7f, 0f, 8f), 12f, new Color(1f, 0.85f, 0.55f));
         SpawnStreetLamp(new Vector3(-7f, 0f, 26f), 12f, new Color(1f, 0.82f, 0.5f));

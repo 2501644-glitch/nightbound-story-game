@@ -18,6 +18,7 @@ public class CutsceneDirector : MonoBehaviour
 
     public void PlayIntroCutscene()
     {
+        EnvironmentStyler.Instance?.ApplyLevelTheme(1);
         StartCoroutine(CutsceneSequence());
     }
 
@@ -58,7 +59,9 @@ public class CutsceneDirector : MonoBehaviour
         GameObject familyDad = CreateActor("Father", new Vector3(-1.5f, 0.9f, 2f), new Color(0.3f, 0.5f, 0.8f), PrimitiveType.Capsule);
         GameObject familyMom = CreateActor("Mother", new Vector3(0f, 0.85f, 2f), new Color(0.7f, 0.3f, 0.5f), PrimitiveType.Capsule);
         GameObject familyKid = CreateActor("Child", new Vector3(1.2f, 0.6f, 2f), new Color(0.8f, 0.7f, 0.3f), PrimitiveType.Capsule);
-        familyKid.transform.localScale = new Vector3(0.7f, 0.7f, 0.7f);
+        familyDad.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        familyMom.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        familyKid.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
 
         GameObject hitman1 = CreateActor("Hitman 1", new Vector3(-2f, 1f, -4f), new Color(0.15f, 0.15f, 0.15f), PrimitiveType.Capsule);
         GameObject hitman2 = CreateActor("Hitman 2", new Vector3(2f, 1f, -4f), new Color(0.15f, 0.15f, 0.15f), PrimitiveType.Capsule);
@@ -66,8 +69,8 @@ public class CutsceneDirector : MonoBehaviour
         CreateBlock("CoverCrate", new Vector3(-6f, 1f, -2f), new Vector3(2f, 2f, 2f), new Color(0.35f, 0.25f, 0.15f));
         CreateActor("HeroYoung", new Vector3(-6f, 0.7f, -3.5f), new Color(0.2f, 0.3f, 0.2f), PrimitiveType.Capsule);
 
-        cutsceneCamera.transform.position = new Vector3(0f, 2.5f, -8f);
-        cutsceneCamera.transform.rotation = Quaternion.Euler(15f, 0f, 0f);
+        cutsceneCamera.transform.position = new Vector3(0f, 2.4f, -9f);
+        cutsceneCamera.transform.LookAt(new Vector3(0f, 1.1f, 1f));
 
         bool dialogueDone = false;
         var scene1Dialogue = new List<DialogueLine>
@@ -80,17 +83,29 @@ public class CutsceneDirector : MonoBehaviour
         DialogueManager.Instance?.StartConversation(scene1Dialogue, () => dialogueDone = true);
         while (!dialogueDone) yield return null;
 
+        // Hold the hitmen in idle while the dialogue is on screen, then let them approach.
+        Coroutine approachOne = StartCoroutine(MoveActor(hitman1, new Vector3(-1.6f, 1f, 0.8f), 2.4f));
+        Coroutine approachTwo = StartCoroutine(MoveActor(hitman2, new Vector3(0.8f, 1f, 0.8f), 2.4f));
+        if (approachOne != null) yield return approachOne;
+        if (approachTwo != null) yield return approachTwo;
+
         // Gunshots and execution
+        FocusCamera(familyDad.transform.position);
+        yield return new WaitForSeconds(0.4f);
         ProceduralAudio.Instance?.PlayGunshot();
         familyDad.transform.rotation = Quaternion.Euler(85f, 0f, 0f);
         familyDad.transform.position += Vector3.down * 0.7f;
         yield return new WaitForSeconds(0.5f);
 
+        FocusCamera(familyMom.transform.position);
+        yield return new WaitForSeconds(0.4f);
         ProceduralAudio.Instance?.PlayGunshot();
         familyMom.transform.rotation = Quaternion.Euler(85f, 40f, 0f);
         familyMom.transform.position += Vector3.down * 0.7f;
         yield return new WaitForSeconds(0.5f);
 
+        FocusCamera(familyKid.transform.position);
+        yield return new WaitForSeconds(0.4f);
         ProceduralAudio.Instance?.PlayGunshot();
         familyKid.transform.rotation = Quaternion.Euler(85f, -30f, 0f);
         familyKid.transform.position += Vector3.down * 0.5f;
@@ -152,22 +167,17 @@ public class CutsceneDirector : MonoBehaviour
 
         ProceduralAudio.Instance?.PlayShadowStep();
 
-        float elapsed = 0f;
-        Vector3 startP = hero.transform.position;
-        Vector3 targetP = new Vector3(0f, 1f, 3.5f);
-        while (elapsed < 2.0f)
-        {
-            elapsed += Time.deltaTime;
-            hero.transform.position = Vector3.Lerp(startP, targetP, elapsed / 2.0f);
-            yield return null;
-        }
+        yield return StartCoroutine(MoveActor(hero, new Vector3(0f, 1f, 3.5f), 2.0f));
     }
 
     private IEnumerator PlayScene3_VampireSerum()
     {
         ClearStage();
 
-        CreateBlock("CryptFloor", new Vector3(0f, -0.5f, 0f), new Vector3(18f, 1f, 18f), new Color(0.15f, 0.12f, 0.1f));
+        CreateBlock("SerumChamberFloor", new Vector3(0f, -0.5f, 0f), new Vector3(18f, 1f, 18f), new Color(0.09f, 0.1f, 0.14f));
+        CreateBlock("SerumChamberBackWall", new Vector3(0f, 3f, 8f), new Vector3(18f, 6f, 0.8f), new Color(0.08f, 0.06f, 0.1f));
+        CreateBlock("SerumChamberLeftWall", new Vector3(-8.6f, 3f, 0f), new Vector3(0.8f, 6f, 16f), new Color(0.08f, 0.06f, 0.1f));
+        CreateBlock("SerumChamberRightWall", new Vector3(8.6f, 3f, 0f), new Vector3(0.8f, 6f, 16f), new Color(0.08f, 0.06f, 0.1f));
         CreateBlock("CryptPillarL", new Vector3(-4f, 2.5f, 3f), new Vector3(1.2f, 6f, 1.2f), new Color(0.2f, 0.15f, 0.12f));
         CreateBlock("CryptPillarR", new Vector3(4f, 2.5f, 3f), new Vector3(1.2f, 6f, 1.2f), new Color(0.2f, 0.15f, 0.12f));
 
@@ -177,11 +187,20 @@ public class CutsceneDirector : MonoBehaviour
         serumVial.transform.localScale = new Vector3(0.25f, 0.4f, 0.25f);
         ApplyCutsceneMaterial(serumVial, Color.red);
         stageActors.Add(serumVial);
+        GameObject serumLightObject = new GameObject("SerumChamberLight");
+        serumLightObject.transform.position = new Vector3(0f, 2.4f, 2f);
+        Light serumLight = serumLightObject.AddComponent<Light>();
+        serumLight.type = LightType.Point;
+        serumLight.range = 7f;
+        serumLight.color = new Color(0.55f, 0.08f, 0.18f);
+        serumLight.intensity = 3.5f;
+        stageActors.Add(serumLightObject);
 
-        GameObject hero = CreateActor("HeroVampireTransformed", new Vector3(0f, 1f, 0f), new Color(0.18f, 0.05f, 0.05f), PrimitiveType.Capsule);
+        GameObject hero = CreateActor("HeroInLab", new Vector3(0f, 1f, -5f), new Color(0.18f, 0.05f, 0.05f), PrimitiveType.Capsule);
 
-        cutsceneCamera.transform.position = new Vector3(0f, 2.0f, -3.5f);
-        cutsceneCamera.transform.rotation = Quaternion.Euler(14f, 0f, 0f);
+        cutsceneCamera.transform.position = new Vector3(0f, 2.5f, -9f);
+        cutsceneCamera.transform.LookAt(new Vector3(0f, 1.2f, 1f));
+        Coroutine heroEntry = StartCoroutine(MoveActor(hero, new Vector3(0f, 1f, 0.6f), 1.7f));
 
         bool dialogueDone = false;
         var scene3Dialogue = new List<DialogueLine>
@@ -193,14 +212,11 @@ public class CutsceneDirector : MonoBehaviour
 
         DialogueManager.Instance?.StartConversation(scene3Dialogue, () => dialogueDone = true);
         while (!dialogueDone) yield return null;
+        if (heroEntry != null) yield return heroEntry;
 
         serumVial.SetActive(false);
         ProceduralAudio.Instance?.PlaySerumInject();
-        Renderer heroRenderer = hero.GetComponentInChildren<Renderer>();
-        if (heroRenderer != null)
-        {
-            heroRenderer.material.color = new Color(0.85f, 0.08f, 0.12f);
-        }
+        ReplaceActorVisual(hero, "Characters/RayanAfterSerum", 1.8f);
 
         dialogueDone = false;
         var scene3Climax = new List<DialogueLine>
@@ -267,6 +283,43 @@ public class CutsceneDirector : MonoBehaviour
 
     private GameObject CreateActor(string name, Vector3 pos, Color col, PrimitiveType prim)
     {
+        string familyModel = null;
+        float familyHeight = 0f;
+        Color familyTint = Color.white;
+        if (name == "Father") { familyModel = "Characters/the father"; familyHeight = 1.78f; familyTint = new Color(0.68f, 0.76f, 0.88f); }
+        else if (name == "Mother") { familyModel = "Characters/the mother"; familyHeight = 1.68f; familyTint = new Color(0.82f, 0.62f, 0.72f); }
+        else if (name == "Child") { familyModel = "Characters/the little girl"; familyHeight = 1.18f; familyTint = new Color(0.86f, 0.78f, 0.58f); }
+        if (familyModel != null)
+        {
+            GameObject familyPrefab = Resources.Load<GameObject>(familyModel);
+            if (familyPrefab != null)
+            {
+                // Keep a stable pivot at the actor's center so the existing fall/rotation beats still work.
+                GameObject actor = new GameObject(name);
+                actor.transform.position = pos;
+                GameObject visual = Instantiate(familyPrefab, actor.transform);
+                visual.name = name + "Model";
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.identity;
+                Renderer[] renderers = visual.GetComponentsInChildren<Renderer>(true);
+                if (renderers.Length > 0)
+                {
+                    FitVisualToHeight(visual, familyHeight, actor.transform.position);
+                    foreach (Renderer renderer in renderers)
+                    {
+                        foreach (Material material in renderer.materials)
+                        {
+                            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", material.GetColor("_BaseColor") * familyTint);
+                            else if (material.HasProperty("_Color")) material.SetColor("_Color", material.GetColor("_Color") * familyTint);
+                        }
+                    }
+                }
+                stageActors.Add(actor);
+                return actor;
+            }
+            Debug.LogWarning("Family character model not found in Resources: " + familyModel);
+        }
+
         string modelPath = null;
         if (name.Contains("Vampire")) modelPath = "Characters/VampireHero";
         else if (name.Contains("Hero")) modelPath = "Characters/HumanHero";
@@ -277,11 +330,17 @@ public class CutsceneDirector : MonoBehaviour
             GameObject prefab = Resources.Load<GameObject>(modelPath);
             if (prefab != null)
             {
-                GameObject instance = Instantiate(prefab);
-                instance.name = name;
-                instance.transform.position = pos;
-                stageActors.Add(instance);
-                return instance;
+                GameObject actor = new GameObject(name);
+                actor.transform.position = pos;
+                GameObject visual = Instantiate(prefab, actor.transform);
+                visual.name = name + "Model";
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.identity;
+                float targetHeight = name == "HeroYoung" ? 1.45f : 1.8f;
+                CharacterModelUtility.PrepareVisual(visual, modelPath, targetHeight, pos.y);
+                CharacterModelUtility.PlayIdle(CharacterModelUtility.FindAnimator(visual));
+                stageActors.Add(actor);
+                return actor;
             }
         }
 
@@ -293,11 +352,95 @@ public class CutsceneDirector : MonoBehaviour
         return a;
     }
 
+    private static void FitVisualToHeight(GameObject visual, float targetHeight, Vector3 targetCenter)
+    {
+        Renderer[] renderers = visual.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0) return;
+
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+        if (bounds.size.y <= 0.01f) return;
+
+        Vector3 originalCenter = bounds.center;
+        float scale = targetHeight / bounds.size.y;
+        visual.transform.localScale *= scale;
+        visual.transform.position += targetCenter - (originalCenter + (originalCenter - visual.transform.position) * (scale - 1f));
+    }
+
+    private void ReplaceActorVisual(GameObject actor, string resourcePath, float targetHeight)
+    {
+        for (int i = actor.transform.childCount - 1; i >= 0; i--)
+        {
+            GameObject previous = actor.transform.GetChild(i).gameObject;
+            CharacterModelUtility.ReleaseAnimator(previous);
+            previous.SetActive(false);
+            Destroy(previous);
+        }
+
+        GameObject prefab = Resources.Load<GameObject>(resourcePath);
+        if (prefab == null)
+        {
+            Debug.LogWarning("Cutscene character model not found in Resources: " + resourcePath);
+            return;
+        }
+
+        GameObject visual = Instantiate(prefab, actor.transform);
+        visual.name = "TransformedHeroModel";
+        visual.transform.localPosition = Vector3.zero;
+        visual.transform.localRotation = Quaternion.identity;
+        if (resourcePath == "Characters/RayanAfterSerum")
+            CharacterModelUtility.PrepareVisual(visual, resourcePath, targetHeight, actor.transform.position.y);
+        else
+            FitVisualToHeight(visual, targetHeight, actor.transform.position);
+        CharacterModelUtility.PlayIdle(CharacterModelUtility.FindAnimator(visual));
+    }
+
+    private IEnumerator MoveActor(GameObject actor, Vector3 target, float duration)
+    {
+        if (actor == null) yield break;
+        SetActorMoving(actor, true);
+        Vector3 start = actor.transform.position;
+        Vector3 direction = target - start;
+        direction.y = 0f;
+        if (direction.sqrMagnitude > 0.001f)
+            actor.transform.rotation = Quaternion.LookRotation(direction.normalized);
+
+        float elapsed = 0f;
+        while (elapsed < duration && actor != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            actor.transform.position = Vector3.Lerp(start, target, t);
+            yield return null;
+        }
+        if (actor != null) actor.transform.position = target;
+        SetActorMoving(actor, false);
+    }
+
+    private static void SetActorMoving(GameObject actor, bool moving)
+    {
+        Animator animator = CharacterModelUtility.FindAnimator(actor);
+        if (animator == null) return;
+        if (moving) CharacterModelUtility.PlayWalk(animator);
+        else CharacterModelUtility.PlayIdle(animator);
+    }
+
+    private void FocusCamera(Vector3 focus)
+    {
+        if (cutsceneCamera == null) return;
+        cutsceneCamera.transform.position = new Vector3(focus.x * 0.25f, Mathf.Max(2f, focus.y + 1.4f), focus.z - 8f);
+        cutsceneCamera.transform.LookAt(focus + Vector3.up * 0.25f);
+    }
+
     private void ClearStage()
     {
         foreach (GameObject obj in stageActors)
         {
-            if (obj != null) Destroy(obj);
+            if (obj != null)
+            {
+                CharacterModelUtility.ReleaseAnimator(obj);
+                Destroy(obj);
+            }
         }
         stageActors.Clear();
     }

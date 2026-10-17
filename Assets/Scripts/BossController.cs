@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class BossController : MonoBehaviour
 {
@@ -18,15 +19,21 @@ public class BossController : MonoBehaviour
 
     private float nextAttackTime = 0f;
     private float nextSlamTime = 0f;
-    private Renderer bossRenderer;
+    private Animator characterAnimator;
+    private readonly List<Material> bossMaterials = new List<Material>();
+    private readonly List<Color> originalMaterialColors = new List<Color>();
     private PlayerController player;
+    private bool animationStateInitialized;
+    private bool isWalkingAnimation;
+    private bool isAnimatingAttack;
+    private float attackAnimationEndTime;
+    private Animator deathAnimator;
+    private float deathAnimationEndTime;
 
     private void Awake()
     {
         Instance = this;
         currentHealth = maxHealth;
-        bossRenderer = GetComponentInChildren<Renderer>();
-
         string modelResourcePath = "Characters/Enemy6";
         GameObject bossPrefab = Resources.Load<GameObject>(modelResourcePath);
         if (bossPrefab == null)
@@ -44,9 +51,12 @@ public class BossController : MonoBehaviour
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
             CharacterModelUtility.PrepareVisual(model, modelResourcePath, 2.7f, transform.position.y);
-            Renderer mr = model.GetComponentInChildren<Renderer>();
-            if (mr != null) bossRenderer = mr;
+            TintBossModel(model);
         }
+
+        characterAnimator = CharacterModelUtility.FindAnimator(gameObject);
+        CharacterModelUtility.PlayEnemyIdle(characterAnimator);
+        animationStateInitialized = characterAnimator != null;
     }
 
     private void Start()
@@ -57,8 +67,26 @@ public class BossController : MonoBehaviour
 
     private void Update()
     {
+        if (!isAlive)
+        {
+            if (deathAnimator != null && Time.time >= deathAnimationEndTime)
+            {
+                deathAnimator.speed = 0f;
+                deathAnimator = null;
+            }
+            return;
+        }
         if (Time.timeScale <= 0f) return;
-        if (!isAlive) return;
+
+        if (isAnimatingAttack)
+        {
+            if (Time.time < attackAnimationEndTime)
+            {
+                FacePlayer();
+                return;
+            }
+            isAnimatingAttack = false;
+        }
 
         if (player == null)
         {
@@ -79,12 +107,23 @@ public class BossController : MonoBehaviour
         if (dist > attackRange)
         {
             transform.position += toPlayer.normalized * (moveSpeed * Time.deltaTime);
+            UpdateLocomotionAnimation(true);
+        }
+        else
+        {
+            UpdateLocomotionAnimation(false);
         }
 
         // Heavy Melee Strike
         if (dist <= attackRange && Time.time >= nextAttackTime)
         {
             nextAttackTime = Time.time + attackCooldown;
+            float attackDuration = CharacterModelUtility.PlayEnemyAttack(characterAnimator);
+            if (attackDuration > 0f)
+            {
+                isAnimatingAttack = true;
+                attackAnimationEndTime = Time.time + attackDuration;
+            }
             ProceduralAudio.Instance?.PlayPunch();
             ProceduralAudio.Instance?.PlayVoiceBlip(0.6f);
             player.TakeDamage(attackDamage);
@@ -119,11 +158,8 @@ public class BossController : MonoBehaviour
 
         currentHealth = Mathf.Max(0f, currentHealth - amount);
 
-        if (bossRenderer != null && bossRenderer.material != null)
-        {
-            bossRenderer.material.color = Color.white;
-            Invoke(nameof(RestoreColor), 0.15f);
-        }
+        SetBossColor(new Color(0.82f, 0.78f, 1f));
+        Invoke(nameof(RestoreColor), 0.15f);
 
         if (currentHealth <= 0f)
         {
@@ -133,19 +169,26 @@ public class BossController : MonoBehaviour
 
     private void RestoreColor()
     {
-        if (bossRenderer != null && bossRenderer.material != null && isAlive)
-        {
-            bossRenderer.material.color = new Color(0.35f, 0.05f, 0.05f);
-        }
+        if (isAlive) RestoreBossColors();
     }
 
     private void DefeatBoss()
     {
         isAlive = false;
+        isAnimatingAttack = false;
         ProceduralAudio.Instance?.PlayBossSlam();
 
-        transform.rotation = Quaternion.Euler(85f, transform.eulerAngles.y, 0f);
-        transform.position = new Vector3(transform.position.x, 0.3f, transform.position.z);
+        float deathDuration = CharacterModelUtility.PlayEnemyDeath(characterAnimator);
+        if (deathDuration > 0f)
+        {
+            deathAnimator = characterAnimator;
+            deathAnimationEndTime = Time.time + deathDuration;
+        }
+        else if (characterAnimator != null)
+        {
+            CharacterModelUtility.PlayEnemyIdle(characterAnimator);
+            characterAnimator.speed = 0f;
+        }
 
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
@@ -164,5 +207,70 @@ public class BossController : MonoBehaviour
         {
             UIManager.Instance?.ShowVictory();
         }
+    }
+
+    private void UpdateLocomotionAnimation(bool moving)
+    {
+        if (characterAnimator == null || isAnimatingAttack || !isAlive) return;
+        if (!animationStateInitialized || moving != isWalkingAnimation)
+        {
+            if (moving) CharacterModelUtility.PlayEnemyWalk(characterAnimator);
+            else CharacterModelUtility.PlayEnemyIdle(characterAnimator);
+            isWalkingAnimation = moving;
+            animationStateInitialized = true;
+        }
+    }
+
+    private void FacePlayer()
+    {
+        if (player == null) return;
+        Vector3 toPlayer = player.transform.position - transform.position;
+        toPlayer.y = 0f;
+        if (toPlayer.sqrMagnitude > 0.01f)
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(toPlayer.normalized), 5f * Time.deltaTime);
+    }
+
+    private void TintBossModel(GameObject model)
+    {
+        Color tint = new Color(0.58f, 0.42f, 0.88f);
+        foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>(true))
+        {
+            foreach (Material material in renderer.materials)
+            {
+                if (material == null) continue;
+                string property = material.HasProperty("_BaseColor") ? "_BaseColor" : (material.HasProperty("_Color") ? "_Color" : null);
+                if (property == null) continue;
+                Color baseColor = material.GetColor(property);
+                Color factionColor = new Color(baseColor.r * tint.r, baseColor.g * tint.g, baseColor.b * tint.b, baseColor.a);
+                material.SetColor(property, factionColor);
+                bossMaterials.Add(material);
+                originalMaterialColors.Add(factionColor);
+            }
+        }
+    }
+
+    private void SetBossColor(Color color)
+    {
+        foreach (Material material in bossMaterials)
+            if (material != null) SetMaterialColor(material, color);
+    }
+
+    private void RestoreBossColors()
+    {
+        for (int i = 0; i < bossMaterials.Count; i++)
+            if (bossMaterials[i] != null) SetMaterialColor(bossMaterials[i], originalMaterialColors[i]);
+    }
+
+    private static void SetMaterialColor(Material material, Color color)
+    {
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+        else if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+    }
+
+    private void OnDestroy()
+    {
+        CharacterModelUtility.ReleaseAnimator(gameObject);
+        foreach (Material material in bossMaterials)
+            if (material != null) Destroy(material);
     }
 }
