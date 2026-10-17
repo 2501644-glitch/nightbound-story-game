@@ -8,6 +8,7 @@ public class UIManager : MonoBehaviour
     private GameObject hudRoot;
     private GameObject gameOverRoot;
     private GameObject victoryRoot;
+    private GameObject pauseRoot;
 
     // Subtitle & Dialogue Box
     private GameObject subtitleBox;
@@ -122,6 +123,25 @@ public class UIManager : MonoBehaviour
         if (hudRoot != null) hudRoot.SetActive(false);
     }
 
+    public void ShowPause()
+    {
+        if (pauseRoot != null) pauseRoot.SetActive(true);
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    public void HidePause()
+    {
+        if (pauseRoot != null) pauseRoot.SetActive(false);
+        if (GameManager.Instance != null &&
+            GameManager.Instance.currentState != GameManager.GameState.GameOver &&
+            GameManager.Instance.currentState != GameManager.GameState.Victory)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+    }
+
     public void SetSubtitleText(string speaker, string dialogue)
     {
         if (string.IsNullOrEmpty(dialogue))
@@ -184,6 +204,7 @@ public class UIManager : MonoBehaviour
         BuildSubtitleBox(c);
         BuildGameOverUI(c);
         BuildVictoryUI(c);
+        BuildPauseUI(c);
     }
 
     private void BuildSubtitleBox(Transform parent)
@@ -311,6 +332,22 @@ public class UIManager : MonoBehaviour
         replay.color = new Color(0.3f, 0.85f, 1f);
 
         victoryRoot.SetActive(false);
+    }
+
+    private void BuildPauseUI(Transform parent)
+    {
+        pauseRoot = CreatePanel(parent, "PauseScreen", new Color(0.02f, 0.025f, 0.04f, 0.94f));
+
+        Text title = CreateText(pauseRoot.transform, "PAUSED", 38, TextAnchor.MiddleCenter);
+        title.rectTransform.anchoredPosition = new Vector2(0f, 80f);
+        title.color = new Color(0.85f, 0.8f, 0.6f);
+
+        Text actions = CreateText(pauseRoot.transform, "[ ESC ] RESUME\n[ R ] RESTART LEVEL\n[ Q ] QUIT", 20, TextAnchor.MiddleCenter);
+        actions.rectTransform.anchoredPosition = new Vector2(0f, -15f);
+        actions.rectTransform.sizeDelta = new Vector2(700f, 150f);
+        actions.color = Color.white;
+
+        pauseRoot.SetActive(false);
     }
 
     private Image CreateBar(Transform parent, string name, Vector2 pos, Vector2 size, Color bgColor, Color fillColor)
