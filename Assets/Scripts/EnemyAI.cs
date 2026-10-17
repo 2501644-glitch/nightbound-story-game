@@ -38,6 +38,7 @@ public class EnemyAI : MonoBehaviour
     private Animator deathAnimator;
     private AnimatorOverrideController deathOverrideController;
     private float deathAnimationEndTime;
+    private bool despawnAfterDeath;
 
     private void Awake()
     {
@@ -108,6 +109,11 @@ public class EnemyAI : MonoBehaviour
             {
                 deathAnimator.speed = 0f;
                 deathAnimator = null;
+                if (despawnAfterDeath) Destroy(gameObject);
+            }
+            else if (despawnAfterDeath && deathAnimator == null)
+            {
+                Destroy(gameObject);
             }
             return;
         }
@@ -267,7 +273,12 @@ public class EnemyAI : MonoBehaviour
             bodyRenderer.material.color = originalColor;
     }
 
-    public void InstantKill() => Die();
+    public void InstantKill()
+    {
+        despawnAfterDeath = true;
+        Die();
+        if (deathAnimator == null) Destroy(gameObject);
+    }
 
     private void Die()
     {
