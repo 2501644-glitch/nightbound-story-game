@@ -364,7 +364,7 @@ public class UIManager : MonoBehaviour
         GameObject fillObj = new GameObject(name + "_Fill", typeof(RectTransform), typeof(Image));
         fillObj.transform.SetParent(bgObj.transform, false);
         Stretch(fillObj.GetComponent<RectTransform>());
-        Image fillImg = fillObj.AddComponent<Image>();
+        Image fillImg = fillObj.GetComponent<Image>();
         fillImg.sprite = solidSprite;
         fillImg.type = Image.Type.Filled;
         fillImg.fillMethod = Image.FillMethod.Horizontal;

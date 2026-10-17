@@ -319,11 +319,11 @@ public class DialogueManager : MonoBehaviour
         GameObject dTextObj = new GameObject("DialogueText", typeof(RectTransform), typeof(Text));
         dTextObj.transform.SetParent(dialogueBoxRoot.transform, false);
         RectTransform dtRect = dTextObj.GetComponent<RectTransform>();
-        dtRect.anchorMin = new Vector2(0f, 1f);
-        dtRect.anchorMax = new Vector2(1f, 0f);
+        dtRect.anchorMin = Vector2.zero;
+        dtRect.anchorMax = Vector2.one;
         dtRect.pivot = new Vector2(0f, 1f);
-        dtRect.anchoredPosition = new Vector2(130f, -48f);
-        dtRect.sizeDelta = new Vector2(-155f, -65f);
+        dtRect.offsetMin = new Vector2(130f, 32f);
+        dtRect.offsetMax = new Vector2(-20f, -48f);
         dialogueBodyText = dTextObj.GetComponent<Text>();
         dialogueBodyText.font = gameFont;
         dialogueBodyText.fontSize = 20;
