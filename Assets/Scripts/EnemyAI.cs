@@ -36,6 +36,7 @@ public class EnemyAI : MonoBehaviour
     private float stunTimer = 0f;
     private float nextAttackTime = 0f;
     private Animator deathAnimator;
+    private AnimatorOverrideController deathOverrideController;
     private float deathAnimationEndTime;
 
     private void Awake()
@@ -284,7 +285,12 @@ public class EnemyAI : MonoBehaviour
         if (col != null) col.enabled = false;
 
         GameManager.Instance?.OnEnemyDefeated(this);
-        Destroy(gameObject, hasDeathAnimation ? Mathf.Max(deathAnimationEndTime - Time.time, 0.65f) + 0.15f : 0.65f);
+
+        if (!hasDeathAnimation)
+        {
+            Animator animator = GetComponentInChildren<Animator>(true);
+            if (animator != null) animator.speed = 0f;
+        }
     }
 
     private bool PlayDeathAnimation()
@@ -297,18 +303,21 @@ public class EnemyAI : MonoBehaviour
             return false;
 
         AnimationClip deathClip = deathClips[0];
-        AnimatorOverrideController overrideController = new AnimatorOverrideController(sourceController);
+        deathOverrideController = new AnimatorOverrideController(sourceController);
         var overrides = new List<KeyValuePair<AnimationClip, AnimationClip>>(walkClips.Length);
-        overrideController.GetOverrides(overrides);
+        deathOverrideController.GetOverrides(overrides);
         if (overrides.Count == 0)
         {
-            Destroy(overrideController);
+            Destroy(deathOverrideController);
+            deathOverrideController = null;
             return false;
         }
 
-        overrides[0] = new KeyValuePair<AnimationClip, AnimationClip>(overrides[0].Key, deathClip);
-        overrideController.ApplyOverrides(overrides);
-        animator.runtimeAnimatorController = overrideController;
+        int walkClipIndex = overrides.FindIndex(pair => pair.Key != null && pair.Key.name == "Walk");
+        if (walkClipIndex < 0) walkClipIndex = 0;
+        overrides[walkClipIndex] = new KeyValuePair<AnimationClip, AnimationClip>(overrides[walkClipIndex].Key, deathClip);
+        deathOverrideController.ApplyOverrides(overrides);
+        animator.runtimeAnimatorController = deathOverrideController;
         animator.applyRootMotion = false;
         animator.speed = 1f;
         animator.enabled = true;
@@ -317,7 +326,12 @@ public class EnemyAI : MonoBehaviour
 
         deathAnimator = animator;
         deathAnimationEndTime = Time.time + deathClip.length;
-        Destroy(overrideController, deathClip.length + 0.2f);
         return true;
+    }
+
+    private void OnDestroy()
+    {
+        if (deathOverrideController != null)
+            Destroy(deathOverrideController);
     }
 }

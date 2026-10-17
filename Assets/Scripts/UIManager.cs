@@ -31,6 +31,7 @@ public class UIManager : MonoBehaviour
     private Text bloodLevelText;
     private Text serumStatusText;
     private Text timeOfDayText;
+    private Text levelObjectiveText;
     private Text abilityHelpText;
     private Text bitePromptText;
     private Text alertText;
@@ -46,6 +47,7 @@ public class UIManager : MonoBehaviour
     private Text masterVolumeValueText;
 
     private Font gameFont;
+    private Font hudThemeFont;
     private Sprite solidSprite;
     private Sprite glowSprite;
     private Sprite moonSprite;
@@ -64,6 +66,8 @@ public class UIManager : MonoBehaviour
         gameFont = Font.CreateDynamicFontFromOSFont(new[] { "Bahnschrift", "Segoe UI", "Arial" }, 18);
         if (gameFont == null) gameFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (gameFont == null) gameFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        hudThemeFont = Font.CreateDynamicFontFromOSFont(new[] { "Georgia", "Bahnschrift", "Segoe UI", "Arial" }, 18);
+        if (hudThemeFont == null) hudThemeFont = gameFont;
 
         masterVolume = PlayerPrefs.GetFloat("NightboundMasterVolume", AudioListener.volume);
         fullscreen = PlayerPrefs.GetInt("NightboundFullscreen", Screen.fullScreen ? 1 : 0) == 1;
@@ -220,6 +224,13 @@ public class UIManager : MonoBehaviour
             alertText.fontSize = isLevelHeading ? 28 : 22;
             alertText.fontStyle = isLevelHeading ? FontStyle.Bold : FontStyle.Normal;
         }
+    }
+
+    public void SetLevelObjectiveText(string text)
+    {
+        if (levelObjectiveText == null) return;
+        levelObjectiveText.text = text;
+        levelObjectiveText.gameObject.SetActive(!string.IsNullOrEmpty(text));
     }
 
     public void ShowGameOver(string reason)
@@ -593,40 +604,61 @@ public class UIManager : MonoBehaviour
         Stretch(hudRoot.GetComponent<RectTransform>());
 
         // Health Bar (Bottom Left)
-        healthBarFill = CreateBar(hudRoot.transform, "HealthBar", new Vector2(160f, 78f), new Vector2(280f, 24f),
+        healthBarFill = CreateBar(hudRoot.transform, "HealthBar", new Vector2(40f, 98f), new Vector2(300f, 28f),
             new Color(0.15f, 0.02f, 0.02f, 0.85f), new Color(0.85f, 0.1f, 0.15f));
 
         // Blood Bar (Bottom Left)
-        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(145f, 38f), new Vector2(220f, 15f),
+        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(40f, 55f), new Vector2(180f, 14f),
             new Color(0.08f, 0.02f, 0.15f, 0.85f), new Color(0.6f, 0.08f, 0.85f));
         bloodLevelText = CreateText(hudRoot.transform, "BLOOD  70/100", 14, TextAnchor.MiddleLeft);
-        bloodLevelText.rectTransform.anchorMin = new Vector2(1f, 0f);
-        bloodLevelText.rectTransform.anchorMax = new Vector2(1f, 0f);
-        bloodLevelText.rectTransform.pivot = new Vector2(1f, 0f);
-        bloodLevelText.rectTransform.anchoredPosition = new Vector2(-28f, 68f);
-        bloodLevelText.rectTransform.sizeDelta = new Vector2(260f, 28f);
+        bloodLevelText.rectTransform.anchorMin = Vector2.zero;
+        bloodLevelText.rectTransform.anchorMax = Vector2.zero;
+        bloodLevelText.rectTransform.pivot = Vector2.zero;
+        bloodLevelText.rectTransform.anchoredPosition = new Vector2(40f, 24f);
+        bloodLevelText.rectTransform.sizeDelta = new Vector2(220f, 24f);
         bloodLevelText.color = new Color(0.82f, 0.58f, 1f);
-        bloodLevelText.fontSize = 16;
+        bloodLevelText.fontSize = 14;
         bloodLevelText.fontStyle = FontStyle.Bold;
-
-        // Serum Status (Bottom Left)
-        serumStatusText = CreateText(hudRoot.transform, "VAMPIRE FORM - SERUM: 02:00", 16, TextAnchor.MiddleLeft);
-        serumStatusText.rectTransform.anchoredPosition = new Vector2(170f, 100f);
+        bloodLevelText.font = hudThemeFont;
 
         // Day/Night Indicator (Top Center)
         timeOfDayText = CreateText(hudRoot.transform, "NIGHT [SAFE]", 18, TextAnchor.MiddleCenter);
         timeOfDayText.rectTransform.anchorMin = new Vector2(0.5f, 1f);
         timeOfDayText.rectTransform.anchorMax = new Vector2(0.5f, 1f);
         timeOfDayText.rectTransform.pivot = new Vector2(0.5f, 1f);
-        timeOfDayText.rectTransform.anchoredPosition = new Vector2(0f, -8f);
+        timeOfDayText.rectTransform.anchoredPosition = new Vector2(0f, -14f);
         timeOfDayText.rectTransform.sizeDelta = new Vector2(640f, 32f);
+        timeOfDayText.fontStyle = FontStyle.Bold;
+        timeOfDayText.font = hudThemeFont;
+
+        // Level objective is kept separate from transient center-screen alerts.
+        levelObjectiveText = CreateText(hudRoot.transform, string.Empty, 24, TextAnchor.MiddleCenter);
+        levelObjectiveText.rectTransform.anchorMin = new Vector2(0.5f, 1f);
+        levelObjectiveText.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+        levelObjectiveText.rectTransform.pivot = new Vector2(0.5f, 1f);
+        levelObjectiveText.rectTransform.anchoredPosition = new Vector2(0f, -56f);
+        levelObjectiveText.rectTransform.sizeDelta = new Vector2(1200f, 42f);
+        levelObjectiveText.color = new Color(0.92f, 0.25f, 0.16f);
+        levelObjectiveText.fontStyle = FontStyle.Bold;
+        levelObjectiveText.font = hudThemeFont;
+        levelObjectiveText.gameObject.SetActive(false);
+
+        // Serum state sits directly below the level objective.
+        serumStatusText = CreateText(hudRoot.transform, "VAMPIRE FORM - SERUM: 02:00", 16, TextAnchor.MiddleCenter);
+        serumStatusText.rectTransform.anchorMin = new Vector2(0.5f, 1f);
+        serumStatusText.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+        serumStatusText.rectTransform.pivot = new Vector2(0.5f, 1f);
+        serumStatusText.rectTransform.anchoredPosition = new Vector2(0f, -98f);
+        serumStatusText.rectTransform.sizeDelta = new Vector2(700f, 30f);
+        serumStatusText.fontStyle = FontStyle.Bold;
+        serumStatusText.font = hudThemeFont;
 
         // Ability Controls Help (Bottom Right)
         abilityHelpText = CreateText(hudRoot.transform, "[Q] Shadow Step  |  [Shift] Time Slow  |  [E] Bite  |  [L-Click] Attack", 14, TextAnchor.MiddleRight);
         abilityHelpText.rectTransform.anchorMin = new Vector2(1f, 0f);
         abilityHelpText.rectTransform.anchorMax = new Vector2(1f, 0f);
         abilityHelpText.rectTransform.pivot = new Vector2(1f, 0f);
-        abilityHelpText.rectTransform.anchoredPosition = new Vector2(-20f, 24f);
+        abilityHelpText.rectTransform.anchoredPosition = new Vector2(-24f, 58f);
         abilityHelpText.rectTransform.sizeDelta = new Vector2(760f, 28f);
         abilityHelpText.color = new Color(0.8f, 0.8f, 0.85f, 0.7f);
 
