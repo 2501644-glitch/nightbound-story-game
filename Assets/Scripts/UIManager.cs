@@ -61,7 +61,8 @@ public class UIManager : MonoBehaviour
         }
         Instance = this;
 
-        gameFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        gameFont = Font.CreateDynamicFontFromOSFont(new[] { "Bahnschrift", "Segoe UI", "Arial" }, 18);
+        if (gameFont == null) gameFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (gameFont == null) gameFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
         masterVolume = PlayerPrefs.GetFloat("NightboundMasterVolume", AudioListener.volume);
@@ -207,6 +208,17 @@ public class UIManager : MonoBehaviour
         {
             alertText.text = text;
             alertText.gameObject.SetActive(!string.IsNullOrEmpty(text));
+
+            bool isLevelHeading = !string.IsNullOrEmpty(text) &&
+                (text.StartsWith("LEVEL ") || text.StartsWith("FINAL LEVEL:"));
+            RectTransform rect = alertText.rectTransform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = isLevelHeading ? Vector2.zero : new Vector2(0f, 120f);
+            rect.sizeDelta = isLevelHeading ? new Vector2(1200f, 80f) : new Vector2(700f, 60f);
+            alertText.fontSize = isLevelHeading ? 28 : 22;
+            alertText.fontStyle = isLevelHeading ? FontStyle.Bold : FontStyle.Normal;
         }
     }
 
@@ -581,19 +593,21 @@ public class UIManager : MonoBehaviour
         Stretch(hudRoot.GetComponent<RectTransform>());
 
         // Health Bar (Bottom Left)
-        healthBarFill = CreateBar(hudRoot.transform, "HealthBar", new Vector2(140f, 65f), new Vector2(220f, 22f),
+        healthBarFill = CreateBar(hudRoot.transform, "HealthBar", new Vector2(160f, 78f), new Vector2(280f, 24f),
             new Color(0.15f, 0.02f, 0.02f, 0.85f), new Color(0.85f, 0.1f, 0.15f));
 
         // Blood Bar (Bottom Left)
-        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(120f, 36f), new Vector2(190f, 13f),
+        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(145f, 38f), new Vector2(220f, 15f),
             new Color(0.08f, 0.02f, 0.15f, 0.85f), new Color(0.6f, 0.08f, 0.85f));
         bloodLevelText = CreateText(hudRoot.transform, "BLOOD  70/100", 14, TextAnchor.MiddleLeft);
-        bloodLevelText.rectTransform.anchorMin = Vector2.zero;
-        bloodLevelText.rectTransform.anchorMax = Vector2.zero;
-        bloodLevelText.rectTransform.pivot = new Vector2(0f, 0.5f);
-        bloodLevelText.rectTransform.anchoredPosition = new Vector2(225f, 36f);
-        bloodLevelText.rectTransform.sizeDelta = new Vector2(130f, 24f);
+        bloodLevelText.rectTransform.anchorMin = new Vector2(1f, 0f);
+        bloodLevelText.rectTransform.anchorMax = new Vector2(1f, 0f);
+        bloodLevelText.rectTransform.pivot = new Vector2(1f, 0f);
+        bloodLevelText.rectTransform.anchoredPosition = new Vector2(-28f, 68f);
+        bloodLevelText.rectTransform.sizeDelta = new Vector2(260f, 28f);
         bloodLevelText.color = new Color(0.82f, 0.58f, 1f);
+        bloodLevelText.fontSize = 16;
+        bloodLevelText.fontStyle = FontStyle.Bold;
 
         // Serum Status (Bottom Left)
         serumStatusText = CreateText(hudRoot.transform, "VAMPIRE FORM - SERUM: 02:00", 16, TextAnchor.MiddleLeft);
@@ -604,14 +618,16 @@ public class UIManager : MonoBehaviour
         timeOfDayText.rectTransform.anchorMin = new Vector2(0.5f, 1f);
         timeOfDayText.rectTransform.anchorMax = new Vector2(0.5f, 1f);
         timeOfDayText.rectTransform.pivot = new Vector2(0.5f, 1f);
-        timeOfDayText.rectTransform.anchoredPosition = new Vector2(0f, -20f);
+        timeOfDayText.rectTransform.anchoredPosition = new Vector2(0f, -8f);
+        timeOfDayText.rectTransform.sizeDelta = new Vector2(640f, 32f);
 
         // Ability Controls Help (Bottom Right)
         abilityHelpText = CreateText(hudRoot.transform, "[Q] Shadow Step  |  [Shift] Time Slow  |  [E] Bite  |  [L-Click] Attack", 14, TextAnchor.MiddleRight);
         abilityHelpText.rectTransform.anchorMin = new Vector2(1f, 0f);
         abilityHelpText.rectTransform.anchorMax = new Vector2(1f, 0f);
         abilityHelpText.rectTransform.pivot = new Vector2(1f, 0f);
-        abilityHelpText.rectTransform.anchoredPosition = new Vector2(-20f, 30f);
+        abilityHelpText.rectTransform.anchoredPosition = new Vector2(-20f, 24f);
+        abilityHelpText.rectTransform.sizeDelta = new Vector2(760f, 28f);
         abilityHelpText.color = new Color(0.8f, 0.8f, 0.85f, 0.7f);
 
         // Crosshair
@@ -632,6 +648,7 @@ public class UIManager : MonoBehaviour
         // Alert Text
         alertText = CreateText(hudRoot.transform, "", 22, TextAnchor.MiddleCenter);
         alertText.rectTransform.anchoredPosition = new Vector2(0f, 120f);
+        alertText.rectTransform.sizeDelta = new Vector2(1200f, 80f);
         alertText.color = new Color(1f, 0.3f, 0.15f);
 
         // Boss Bar (Top)

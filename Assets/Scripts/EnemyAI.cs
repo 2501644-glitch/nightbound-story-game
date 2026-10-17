@@ -1,8 +1,11 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections.Generic;
 
 public class EnemyAI : MonoBehaviour
 {
+    private static int nextVisualVariant;
+
     [Header("Combat Stats")]
     public float maxHealth = 60f;
     public float currentHealth = 60f;
@@ -32,7 +35,8 @@ public class EnemyAI : MonoBehaviour
     private int currentPatrolIndex = 0;
     private float stunTimer = 0f;
     private float nextAttackTime = 0f;
-    private static int nextVisualVariant;
+    private Animator deathAnimator;
+    private float deathAnimationEndTime;
 
     private void Awake()
     {
@@ -97,7 +101,15 @@ public class EnemyAI : MonoBehaviour
     private void Update()
     {
         if (Time.timeScale <= 0f) return;
-        if (!isAlive) return;
+        if (!isAlive)
+        {
+            if (deathAnimator != null && Time.time >= deathAnimationEndTime)
+            {
+                deathAnimator.speed = 0f;
+                deathAnimator = null;
+            }
+            return;
+        }
 
         if (isStunned)
         {
@@ -266,13 +278,46 @@ public class EnemyAI : MonoBehaviour
         if (bodyRenderer != null && bodyRenderer.material != null)
             bodyRenderer.material.color = new Color(0.2f, 0.02f, 0.02f);
 
-        transform.rotation = Quaternion.Euler(85f, transform.eulerAngles.y, 0f);
-        transform.position = new Vector3(transform.position.x, 0.25f, transform.position.z);
+        bool hasDeathAnimation = PlayDeathAnimation();
 
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
 
         GameManager.Instance?.OnEnemyDefeated(this);
-        Destroy(gameObject, 6f);
+        Destroy(gameObject, hasDeathAnimation ? Mathf.Max(deathAnimationEndTime - Time.time, 0.65f) + 0.15f : 0.65f);
+    }
+
+    private bool PlayDeathAnimation()
+    {
+        Animator animator = GetComponentInChildren<Animator>(true);
+        RuntimeAnimatorController sourceController = animator != null ? animator.runtimeAnimatorController : null;
+        AnimationClip[] walkClips = sourceController != null ? sourceController.animationClips : null;
+        AnimationClip[] deathClips = Resources.LoadAll<AnimationClip>("Animations/sword and shield death");
+        if (animator == null || walkClips == null || walkClips.Length == 0 || deathClips.Length == 0)
+            return false;
+
+        AnimationClip deathClip = deathClips[0];
+        AnimatorOverrideController overrideController = new AnimatorOverrideController(sourceController);
+        var overrides = new List<KeyValuePair<AnimationClip, AnimationClip>>(walkClips.Length);
+        overrideController.GetOverrides(overrides);
+        if (overrides.Count == 0)
+        {
+            Destroy(overrideController);
+            return false;
+        }
+
+        overrides[0] = new KeyValuePair<AnimationClip, AnimationClip>(overrides[0].Key, deathClip);
+        overrideController.ApplyOverrides(overrides);
+        animator.runtimeAnimatorController = overrideController;
+        animator.applyRootMotion = false;
+        animator.speed = 1f;
+        animator.enabled = true;
+        animator.Play("Walk", 0, 0f);
+        animator.Update(0f);
+
+        deathAnimator = animator;
+        deathAnimationEndTime = Time.time + deathClip.length;
+        Destroy(overrideController, deathClip.length + 0.2f);
+        return true;
     }
 }
