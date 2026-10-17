@@ -279,7 +279,7 @@ public class UIManager : MonoBehaviour
         title.rectTransform.sizeDelta = new Vector2(900f, 90f);
         title.color = new Color(0.86f, 0.12f, 0.19f);
 
-        Text subtitle = CreateText(mainMenuRoot.transform, "A vampire's hunt for vengeance", 22, TextAnchor.MiddleCenter);
+        Text subtitle = CreateText(mainMenuRoot.transform, "A vampire's hunt for vengeance", 18, TextAnchor.MiddleCenter);
         subtitle.rectTransform.anchorMin = new Vector2(0.5f, 0.64f);
         subtitle.rectTransform.anchorMax = new Vector2(0.5f, 0.64f);
         subtitle.rectTransform.anchoredPosition = Vector2.zero;
@@ -355,7 +355,7 @@ public class UIManager : MonoBehaviour
         buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
         buttonRect.pivot = new Vector2(0.5f, 0.5f);
         buttonRect.anchoredPosition = new Vector2(0f, y);
-        buttonRect.sizeDelta = new Vector2(300f, 48f);
+        buttonRect.sizeDelta = new Vector2(270f, 42f);
 
         Image image = buttonObject.GetComponent<Image>();
         image.color = new Color(0.12f, 0.035f, 0.05f, 0.96f);
@@ -373,7 +373,7 @@ public class UIManager : MonoBehaviour
         };
         button.onClick.AddListener(onClick);
 
-        Text text = CreateText(buttonObject.transform, label, 18, TextAnchor.MiddleCenter);
+        Text text = CreateText(buttonObject.transform, label, 16, TextAnchor.MiddleCenter);
         Stretch(text.rectTransform);
         text.rectTransform.sizeDelta = Vector2.zero;
         text.color = new Color(0.94f, 0.88f, 0.86f);
@@ -493,14 +493,14 @@ public class UIManager : MonoBehaviour
             new Color(0.15f, 0.02f, 0.02f, 0.85f), new Color(0.85f, 0.1f, 0.15f));
 
         // Blood Bar (Bottom Left)
-        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(140f, 36f), new Vector2(220f, 15f),
+        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(120f, 36f), new Vector2(190f, 13f),
             new Color(0.08f, 0.02f, 0.15f, 0.85f), new Color(0.6f, 0.08f, 0.85f));
         bloodLevelText = CreateText(hudRoot.transform, "BLOOD  70/100", 14, TextAnchor.MiddleLeft);
         bloodLevelText.rectTransform.anchorMin = Vector2.zero;
         bloodLevelText.rectTransform.anchorMax = Vector2.zero;
         bloodLevelText.rectTransform.pivot = new Vector2(0f, 0.5f);
-        bloodLevelText.rectTransform.anchoredPosition = new Vector2(260f, 36f);
-        bloodLevelText.rectTransform.sizeDelta = new Vector2(140f, 24f);
+        bloodLevelText.rectTransform.anchoredPosition = new Vector2(225f, 36f);
+        bloodLevelText.rectTransform.sizeDelta = new Vector2(130f, 24f);
         bloodLevelText.color = new Color(0.82f, 0.58f, 1f);
 
         // Serum Status (Bottom Left)
