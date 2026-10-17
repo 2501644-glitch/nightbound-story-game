@@ -298,7 +298,9 @@ public class EnemyAI : MonoBehaviour
         Animator animator = GetComponentInChildren<Animator>(true);
         RuntimeAnimatorController sourceController = animator != null ? animator.runtimeAnimatorController : null;
         AnimationClip[] walkClips = sourceController != null ? sourceController.animationClips : null;
-        AnimationClip[] deathClips = Resources.LoadAll<AnimationClip>("Animations/sword and shield death");
+        AnimationClip[] deathClips = Resources.LoadAll<AnimationClip>("Animations/exo_red@Death");
+        if (deathClips.Length == 0)
+            deathClips = Resources.LoadAll<AnimationClip>("Animations/sword and shield death");
         if (animator == null || walkClips == null || walkClips.Length == 0 || deathClips.Length == 0)
             return false;
 
@@ -317,8 +319,14 @@ public class EnemyAI : MonoBehaviour
         if (walkClipIndex < 0) walkClipIndex = 0;
         overrides[walkClipIndex] = new KeyValuePair<AnimationClip, AnimationClip>(overrides[walkClipIndex].Key, deathClip);
         deathOverrideController.ApplyOverrides(overrides);
+        if (agent != null)
+        {
+            if (agent.isOnNavMesh) agent.isStopped = true;
+            agent.enabled = false;
+        }
         animator.runtimeAnimatorController = deathOverrideController;
-        animator.applyRootMotion = false;
+        animator.applyRootMotion = true;
+        animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
         animator.speed = 1f;
         animator.enabled = true;
         animator.Play("Walk", 0, 0f);

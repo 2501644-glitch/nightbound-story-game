@@ -499,6 +499,9 @@ public class PlayerController : MonoBehaviour
         }
         playerCamera.transform.localPosition = new Vector3(0f, 1.6f, 0f);
         playerCamera.transform.localRotation = Quaternion.identity;
+        playerCamera.clearFlags = CameraClearFlags.Skybox;
+        playerCamera.fieldOfView = 58f;
+        playerCamera.farClipPlane = 80f;
     }
 
     private void HandleMouseLook()

@@ -8,6 +8,8 @@ public class EnvironmentStyler : MonoBehaviour
 
     private readonly Dictionary<string, Material> cachedMaterials = new Dictionary<string, Material>();
     private Shader litShader;
+    private Texture2D noirTexture;
+    private Material nightSkybox;
     private readonly List<Light> dynamicFlickerLights = new List<Light>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -32,6 +34,8 @@ public class EnvironmentStyler : MonoBehaviour
         litShader = Shader.Find("Universal Render Pipeline/Lit");
         if (litShader == null) litShader = Shader.Find("Standard");
         if (litShader == null) litShader = Shader.Find("Unlit/Color");
+        noirTexture = Resources.Load<Texture2D>("Textures/Nightbound_Noirmap");
+        EnsureNightSkybox();
 
         StartCoroutine(LightFlickerRoutine());
     }
@@ -39,6 +43,8 @@ public class EnvironmentStyler : MonoBehaviour
     // ================= LEVEL ATMOSPHERE & COLOR PALETTES =================
     public void ApplyLevelTheme(int levelIndex)
     {
+        EnsureNightSkybox();
+        if (nightSkybox != null) RenderSettings.skybox = nightSkybox;
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.ExponentialSquared;
         dynamicFlickerLights.Clear();
@@ -123,6 +129,26 @@ public class EnvironmentStyler : MonoBehaviour
         }
     }
 
+    private void EnsureNightSkybox()
+    {
+        if (nightSkybox != null) return;
+
+        Texture2D skyTexture = Resources.Load<Texture2D>("Textures/Kloppenheim_02_Pure_Sky_Night");
+        Shader skyShader = Shader.Find("Skybox/Panoramic");
+        if (skyTexture == null || skyShader == null) return;
+
+        nightSkybox = new Material(skyShader) { name = "Nightbound Night Sky (Runtime)" };
+        nightSkybox.SetTexture("_MainTex", skyTexture);
+        if (nightSkybox.HasProperty("_Exposure")) nightSkybox.SetFloat("_Exposure", 0.25f);
+        if (nightSkybox.HasProperty("_Tint")) nightSkybox.SetColor("_Tint", new Color(0.62f, 0.70f, 0.9f));
+        RenderSettings.skybox = nightSkybox;
+    }
+
+    private void OnDestroy()
+    {
+        if (nightSkybox != null) Destroy(nightSkybox);
+    }
+
     // ================= SURFACE SHADERS & MATERIALS =================
     public Material GetStyledMaterial(string type, Color customColor = default)
     {
@@ -200,8 +226,41 @@ public class EnvironmentStyler : MonoBehaviour
                 break;
         }
 
+        if (noirTexture != null && IsNoirSurface(type))
+        {
+            string mapProperty = m.HasProperty("_BaseMap") ? "_BaseMap" : (m.HasProperty("_MainTex") ? "_MainTex" : null);
+            if (mapProperty != null)
+            {
+                m.SetTexture(mapProperty, noirTexture);
+                float tile = type.Equals("wet_asphalt", System.StringComparison.OrdinalIgnoreCase) ||
+                             type.Equals("industrial_floor", System.StringComparison.OrdinalIgnoreCase) ? 6f : 2f;
+                m.SetTextureScale(mapProperty, new Vector2(tile, tile));
+                Color tint = m.color;
+                float max = Mathf.Max(tint.r, Mathf.Max(tint.g, tint.b));
+                if (max > 0.001f) m.color = new Color(tint.r / max, tint.g / max, tint.b / max, tint.a);
+            }
+        }
+
         cachedMaterials[key] = m;
         return m;
+    }
+
+    private static bool IsNoirSurface(string type)
+    {
+        switch (type.ToLower())
+        {
+            case "wet_asphalt":
+            case "brick_dark":
+            case "brick_shadow":
+            case "graveyard_earth":
+            case "mossy_stone":
+            case "industrial_floor":
+            case "marble_black":
+            case "cutscene":
+                return true;
+            default:
+                return false;
+        }
     }
 
     private void SetProps(Material m, float smoothness, float metallic)
