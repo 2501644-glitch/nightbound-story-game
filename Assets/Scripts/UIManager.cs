@@ -17,6 +17,7 @@ public class UIManager : MonoBehaviour
     private GameObject creditsMenuContent;
     private Button startGameButton;
     private Button continueButton;
+    private Button gameOverRestartButton;
     private Button fullscreenButton;
 
     // Subtitle & Dialogue Box
@@ -30,6 +31,7 @@ public class UIManager : MonoBehaviour
     private Text bloodLevelText;
     private Text serumStatusText;
     private Text timeOfDayText;
+    private Text levelObjectiveText;
     private Text abilityHelpText;
     private Text bitePromptText;
     private Text alertText;
@@ -45,7 +47,10 @@ public class UIManager : MonoBehaviour
     private Text masterVolumeValueText;
 
     private Font gameFont;
+    private Font hudThemeFont;
     private Sprite solidSprite;
+    private Sprite glowSprite;
+    private Sprite moonSprite;
     private float masterVolume = 1f;
     private bool fullscreen;
 
@@ -58,8 +63,11 @@ public class UIManager : MonoBehaviour
         }
         Instance = this;
 
-        gameFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        gameFont = Font.CreateDynamicFontFromOSFont(new[] { "Bahnschrift", "Segoe UI", "Arial" }, 18);
+        if (gameFont == null) gameFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (gameFont == null) gameFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        hudThemeFont = Font.CreateDynamicFontFromOSFont(new[] { "Georgia", "Bahnschrift", "Segoe UI", "Arial" }, 18);
+        if (hudThemeFont == null) hudThemeFont = gameFont;
 
         masterVolume = PlayerPrefs.GetFloat("NightboundMasterVolume", AudioListener.volume);
         fullscreen = PlayerPrefs.GetInt("NightboundFullscreen", Screen.fullScreen ? 1 : 0) == 1;
@@ -67,6 +75,8 @@ public class UIManager : MonoBehaviour
         Screen.fullScreen = fullscreen;
 
         solidSprite = CreateSolidSprite();
+        glowSprite = CreateGlowSprite();
+        moonSprite = CreateMoonSprite();
         BuildAllUI();
     }
 
@@ -202,7 +212,25 @@ public class UIManager : MonoBehaviour
         {
             alertText.text = text;
             alertText.gameObject.SetActive(!string.IsNullOrEmpty(text));
+
+            bool isLevelHeading = !string.IsNullOrEmpty(text) &&
+                (text.StartsWith("LEVEL ") || text.StartsWith("FINAL LEVEL:"));
+            RectTransform rect = alertText.rectTransform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = isLevelHeading ? Vector2.zero : new Vector2(0f, 120f);
+            rect.sizeDelta = isLevelHeading ? new Vector2(1200f, 80f) : new Vector2(700f, 60f);
+            alertText.fontSize = isLevelHeading ? 28 : 22;
+            alertText.fontStyle = isLevelHeading ? FontStyle.Bold : FontStyle.Normal;
         }
+    }
+
+    public void SetLevelObjectiveText(string text)
+    {
+        if (levelObjectiveText == null) return;
+        levelObjectiveText.text = text;
+        levelObjectiveText.gameObject.SetActive(!string.IsNullOrEmpty(text));
     }
 
     public void ShowGameOver(string reason)
@@ -214,13 +242,14 @@ public class UIManager : MonoBehaviour
         int lvl = GameManager.Instance != null ? GameManager.Instance.currentLevelIndex : 1;
         if (gameOverActionText != null)
         {
-            gameOverActionText.text = (lvl == 4)
-                ? "[ PRESS 'R' TO RESTART FROM LEVEL 1 ]  |  [ ESC TO QUIT ]"
-                : "[ PRESS 'R' TO RESTART LEVEL ]  |  [ ESC TO QUIT ]";
+            gameOverActionText.text = lvl == 4
+                ? "THE FINAL HUNT BEGINS AGAIN."
+                : "THE NIGHT IS NOT OVER.";
         }
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+        SelectButton(gameOverRestartButton);
     }
 
     public void ShowVictory()
@@ -269,28 +298,47 @@ public class UIManager : MonoBehaviour
 
     private void BuildMainMenuUI(Transform parent)
     {
-        mainMenuRoot = CreatePanel(parent, "MainMenuScreen", new Color(0.015f, 0.012f, 0.025f, 0.97f));
-        mainMenuRoot.GetComponent<Image>().raycastTarget = false;
+        mainMenuRoot = CreatePanel(parent, "MainMenuScreen", new Color(0.008f, 0.009f, 0.016f, 0.84f));
+        Image backdrop = mainMenuRoot.GetComponent<Image>();
+        backdrop.raycastTarget = false;
 
-        Text title = CreateText(mainMenuRoot.transform, "N I G H T B O U N D", 54, TextAnchor.MiddleCenter);
-        title.rectTransform.anchorMin = new Vector2(0.5f, 0.72f);
-        title.rectTransform.anchorMax = new Vector2(0.5f, 0.72f);
-        title.rectTransform.anchoredPosition = Vector2.zero;
-        title.rectTransform.sizeDelta = new Vector2(900f, 90f);
-        title.color = new Color(0.86f, 0.12f, 0.19f);
+        AddMenuImage(mainMenuRoot.transform, glowSprite, new Color(0.48f, 0.025f, 0.045f, 0.52f),
+            new Vector2(0.82f, 0.76f), new Vector2(820f, 820f));
+        AddMenuImage(mainMenuRoot.transform, moonSprite, new Color(1f, 0.72f, 0.67f, 0.82f),
+            new Vector2(0.83f, 0.79f), new Vector2(300f, 300f));
+        AddMenuRule(mainMenuRoot.transform, new Vector2(0.5f, 0.875f), 180f, new Color(0.75f, 0.16f, 0.18f, 0.8f));
 
-        Text subtitle = CreateText(mainMenuRoot.transform, "A vampire's hunt for vengeance", 18, TextAnchor.MiddleCenter);
-        subtitle.rectTransform.anchorMin = new Vector2(0.5f, 0.64f);
-        subtitle.rectTransform.anchorMax = new Vector2(0.5f, 0.64f);
-        subtitle.rectTransform.anchoredPosition = Vector2.zero;
-        subtitle.rectTransform.sizeDelta = new Vector2(700f, 40f);
-        subtitle.color = new Color(0.78f, 0.74f, 0.75f);
+        Text edition = CreateAnchoredMenuText(mainMenuRoot.transform, "A NIGHTBOUND STORY", 14,
+            new Vector2(0.5f, 0.875f), new Vector2(360f, 30f), TextAnchor.MiddleCenter);
+        edition.color = new Color(0.87f, 0.7f, 0.62f);
+        edition.fontStyle = FontStyle.Bold;
+
+        Text title = CreateAnchoredMenuText(mainMenuRoot.transform, "NIGHTBOUND", 66,
+            new Vector2(0.5f, 0.79f), new Vector2(700f, 105f), TextAnchor.MiddleCenter);
+        title.color = new Color(0.94f, 0.88f, 0.84f);
+        title.fontStyle = FontStyle.Bold;
+        Outline titleOutline = title.gameObject.AddComponent<Outline>();
+        titleOutline.effectColor = new Color(0.36f, 0.015f, 0.035f, 0.9f);
+        titleOutline.effectDistance = new Vector2(2f, -3f);
+
+        Text subtitle = CreateAnchoredMenuText(mainMenuRoot.transform, "THE NIGHT REMEMBERS.", 19,
+            new Vector2(0.5f, 0.70f), new Vector2(580f, 42f), TextAnchor.MiddleCenter);
+        subtitle.color = new Color(0.78f, 0.72f, 0.7f);
+        subtitle.fontStyle = FontStyle.Italic;
 
         mainMenuContent = CreateMenuView(mainMenuRoot.transform, "MainMenuOptions");
-        startGameButton = CreateMenuButton(mainMenuContent.transform, "START GAME", 65f, () => GameManager.Instance?.StartPrologueCutscene());
-        CreateMenuButton(mainMenuContent.transform, "SETTINGS", 0f, ShowSettingsContent);
-        CreateMenuButton(mainMenuContent.transform, "CREDITS", -65f, ShowCreditsContent);
-        CreateMenuButton(mainMenuContent.transform, "QUIT", -130f, Application.Quit);
+        PositionMenuView(mainMenuContent, new Vector2(0.5f, 0.405f), new Vector2(460f, 360f));
+        startGameButton = CreateMenuButton(mainMenuContent.transform, "BEGIN THE HUNT", 92f,
+            () => GameManager.Instance?.StartPrologueCutscene());
+        startGameButton.GetComponent<RectTransform>().sizeDelta = new Vector2(360f, 56f);
+        CreateMenuButton(mainMenuContent.transform, "SETTINGS", 22f, ShowSettingsContent);
+        CreateMenuButton(mainMenuContent.transform, "CREDITS", -42f, ShowCreditsContent);
+        CreateMenuButton(mainMenuContent.transform, "QUIT", -106f, Application.Quit);
+
+        Text controls = CreateAnchoredMenuText(mainMenuRoot.transform, "MOUSE  /  ENTER TO SELECT",
+            12, new Vector2(0.5f, 0.095f), new Vector2(430f, 28f), TextAnchor.MiddleCenter);
+        controls.color = new Color(0.68f, 0.64f, 0.65f, 0.8f);
+        AddMenuRule(mainMenuRoot.transform, new Vector2(0.5f, 0.125f), 290f, new Color(0.68f, 0.61f, 0.56f, 0.35f));
 
         settingsMenuContent = CreateMenuView(mainMenuRoot.transform, "SettingsOptions");
         CreateMenuHeading(settingsMenuContent.transform, "SETTINGS");
@@ -361,24 +409,91 @@ public class UIManager : MonoBehaviour
         image.color = new Color(0.12f, 0.035f, 0.05f, 0.96f);
         Button button = buttonObject.GetComponent<Button>();
         button.targetGraphic = image;
+        bool isPrimary = label == "BEGIN THE HUNT" || label == "CONTINUE THE STORY";
+        image.color = isPrimary
+            ? new Color(0.19f, 0.025f, 0.04f, 0.94f)
+            : new Color(0.025f, 0.022f, 0.03f, 0.64f);
         button.colors = new ColorBlock
         {
             normalColor = image.color,
-            highlightedColor = new Color(0.38f, 0.08f, 0.11f, 1f),
+            highlightedColor = new Color(0.38f, 0.055f, 0.08f, 1f),
             pressedColor = new Color(0.65f, 0.12f, 0.16f, 1f),
-            selectedColor = new Color(0.38f, 0.08f, 0.11f, 1f),
+            selectedColor = new Color(0.32f, 0.045f, 0.07f, 0.96f),
             disabledColor = new Color(0.2f, 0.2f, 0.2f, 0.5f),
             colorMultiplier = 1f,
             fadeDuration = 0.12f
         };
         button.onClick.AddListener(onClick);
 
+        GameObject accent = new GameObject("CrimsonAccent", typeof(RectTransform), typeof(Image));
+        accent.transform.SetParent(buttonObject.transform, false);
+        RectTransform accentRect = accent.GetComponent<RectTransform>();
+        accentRect.anchorMin = new Vector2(0f, 0.16f);
+        accentRect.anchorMax = new Vector2(0f, 0.84f);
+        accentRect.pivot = new Vector2(0f, 0.5f);
+        accentRect.anchoredPosition = new Vector2(8f, 0f);
+        accentRect.sizeDelta = new Vector2(isPrimary ? 3f : 2f, 0f);
+        accent.GetComponent<Image>().color = new Color(0.88f, 0.12f, 0.18f, isPrimary ? 1f : 0.72f);
+        accent.GetComponent<Image>().raycastTarget = false;
+
         Text text = CreateText(buttonObject.transform, label, 16, TextAnchor.MiddleCenter);
         Stretch(text.rectTransform);
         text.rectTransform.sizeDelta = Vector2.zero;
-        text.color = new Color(0.94f, 0.88f, 0.86f);
+        text.color = isPrimary ? new Color(1f, 0.92f, 0.87f) : new Color(0.84f, 0.8f, 0.78f);
+        text.fontStyle = isPrimary ? FontStyle.Bold : FontStyle.Normal;
         text.raycastTarget = false;
         return button;
+    }
+
+    private Text CreateAnchoredMenuText(Transform parent, string content, int fontSize, Vector2 anchor,
+        Vector2 size, TextAnchor alignment)
+    {
+        Text text = CreateText(parent, content, fontSize, alignment);
+        RectTransform rect = text.rectTransform;
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+        return text;
+    }
+
+    private static void PositionMenuView(GameObject view, Vector2 anchor, Vector2 size)
+    {
+        RectTransform rect = view.GetComponent<RectTransform>();
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+    }
+
+    private void AddMenuImage(Transform parent, Sprite sprite, Color color, Vector2 anchor, Vector2 size)
+    {
+        GameObject imageObject = new GameObject("MenuAtmosphere", typeof(RectTransform), typeof(Image));
+        imageObject.transform.SetParent(parent, false);
+        RectTransform rect = imageObject.GetComponent<RectTransform>();
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+        Image image = imageObject.GetComponent<Image>();
+        image.sprite = sprite;
+        image.color = color;
+        image.raycastTarget = false;
+    }
+
+    private void AddMenuRule(Transform parent, Vector2 anchor, float width, Color color)
+    {
+        GameObject rule = new GameObject("MenuRule", typeof(RectTransform), typeof(Image));
+        rule.transform.SetParent(parent, false);
+        RectTransform rect = rule.GetComponent<RectTransform>();
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = new Vector2(width, 1f);
+        Image image = rule.GetComponent<Image>();
+        image.color = color;
+        image.raycastTarget = false;
     }
 
     private Text CreateMenuText(Transform parent, string content, int fontSize, Vector2 position)
@@ -489,37 +604,62 @@ public class UIManager : MonoBehaviour
         Stretch(hudRoot.GetComponent<RectTransform>());
 
         // Health Bar (Bottom Left)
-        healthBarFill = CreateBar(hudRoot.transform, "HealthBar", new Vector2(140f, 65f), new Vector2(220f, 22f),
+        healthBarFill = CreateBar(hudRoot.transform, "HealthBar", new Vector2(40f, 98f), new Vector2(300f, 28f),
             new Color(0.15f, 0.02f, 0.02f, 0.85f), new Color(0.85f, 0.1f, 0.15f));
 
         // Blood Bar (Bottom Left)
-        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(120f, 36f), new Vector2(190f, 13f),
+        bloodBarFill = CreateBar(hudRoot.transform, "BloodBar", new Vector2(40f, 55f), new Vector2(180f, 14f),
             new Color(0.08f, 0.02f, 0.15f, 0.85f), new Color(0.6f, 0.08f, 0.85f));
         bloodLevelText = CreateText(hudRoot.transform, "BLOOD  70/100", 14, TextAnchor.MiddleLeft);
         bloodLevelText.rectTransform.anchorMin = Vector2.zero;
         bloodLevelText.rectTransform.anchorMax = Vector2.zero;
-        bloodLevelText.rectTransform.pivot = new Vector2(0f, 0.5f);
-        bloodLevelText.rectTransform.anchoredPosition = new Vector2(225f, 36f);
-        bloodLevelText.rectTransform.sizeDelta = new Vector2(130f, 24f);
+        bloodLevelText.rectTransform.pivot = Vector2.zero;
+        bloodLevelText.rectTransform.anchoredPosition = new Vector2(40f, 24f);
+        bloodLevelText.rectTransform.sizeDelta = new Vector2(220f, 24f);
         bloodLevelText.color = new Color(0.82f, 0.58f, 1f);
-
-        // Serum Status (Bottom Left)
-        serumStatusText = CreateText(hudRoot.transform, "VAMPIRE FORM - SERUM: 02:00", 16, TextAnchor.MiddleLeft);
-        serumStatusText.rectTransform.anchoredPosition = new Vector2(170f, 100f);
+        bloodLevelText.fontSize = 14;
+        bloodLevelText.fontStyle = FontStyle.Bold;
+        bloodLevelText.font = hudThemeFont;
 
         // Day/Night Indicator (Top Center)
         timeOfDayText = CreateText(hudRoot.transform, "NIGHT [SAFE]", 18, TextAnchor.MiddleCenter);
         timeOfDayText.rectTransform.anchorMin = new Vector2(0.5f, 1f);
         timeOfDayText.rectTransform.anchorMax = new Vector2(0.5f, 1f);
         timeOfDayText.rectTransform.pivot = new Vector2(0.5f, 1f);
-        timeOfDayText.rectTransform.anchoredPosition = new Vector2(0f, -20f);
+        timeOfDayText.rectTransform.anchoredPosition = new Vector2(0f, -14f);
+        timeOfDayText.rectTransform.sizeDelta = new Vector2(640f, 32f);
+        timeOfDayText.fontStyle = FontStyle.Bold;
+        timeOfDayText.font = hudThemeFont;
+
+        // Level objective is kept separate from transient center-screen alerts.
+        levelObjectiveText = CreateText(hudRoot.transform, string.Empty, 24, TextAnchor.MiddleCenter);
+        levelObjectiveText.rectTransform.anchorMin = new Vector2(0.5f, 1f);
+        levelObjectiveText.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+        levelObjectiveText.rectTransform.pivot = new Vector2(0.5f, 1f);
+        levelObjectiveText.rectTransform.anchoredPosition = new Vector2(0f, -56f);
+        levelObjectiveText.rectTransform.sizeDelta = new Vector2(1200f, 42f);
+        levelObjectiveText.color = new Color(0.92f, 0.25f, 0.16f);
+        levelObjectiveText.fontStyle = FontStyle.Bold;
+        levelObjectiveText.font = hudThemeFont;
+        levelObjectiveText.gameObject.SetActive(false);
+
+        // Serum state sits directly below the level objective.
+        serumStatusText = CreateText(hudRoot.transform, "VAMPIRE FORM - SERUM: 02:00", 16, TextAnchor.MiddleCenter);
+        serumStatusText.rectTransform.anchorMin = new Vector2(0.5f, 1f);
+        serumStatusText.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+        serumStatusText.rectTransform.pivot = new Vector2(0.5f, 1f);
+        serumStatusText.rectTransform.anchoredPosition = new Vector2(0f, -98f);
+        serumStatusText.rectTransform.sizeDelta = new Vector2(700f, 30f);
+        serumStatusText.fontStyle = FontStyle.Bold;
+        serumStatusText.font = hudThemeFont;
 
         // Ability Controls Help (Bottom Right)
         abilityHelpText = CreateText(hudRoot.transform, "[Q] Shadow Step  |  [Shift] Time Slow  |  [E] Bite  |  [L-Click] Attack", 14, TextAnchor.MiddleRight);
         abilityHelpText.rectTransform.anchorMin = new Vector2(1f, 0f);
         abilityHelpText.rectTransform.anchorMax = new Vector2(1f, 0f);
         abilityHelpText.rectTransform.pivot = new Vector2(1f, 0f);
-        abilityHelpText.rectTransform.anchoredPosition = new Vector2(-20f, 30f);
+        abilityHelpText.rectTransform.anchoredPosition = new Vector2(-24f, 58f);
+        abilityHelpText.rectTransform.sizeDelta = new Vector2(760f, 28f);
         abilityHelpText.color = new Color(0.8f, 0.8f, 0.85f, 0.7f);
 
         // Crosshair
@@ -540,6 +680,7 @@ public class UIManager : MonoBehaviour
         // Alert Text
         alertText = CreateText(hudRoot.transform, "", 22, TextAnchor.MiddleCenter);
         alertText.rectTransform.anchoredPosition = new Vector2(0f, 120f);
+        alertText.rectTransform.sizeDelta = new Vector2(1200f, 80f);
         alertText.color = new Color(1f, 0.3f, 0.15f);
 
         // Boss Bar (Top)
@@ -561,38 +702,67 @@ public class UIManager : MonoBehaviour
 
     private void BuildGameOverUI(Transform parent)
     {
-        gameOverRoot = CreatePanel(parent, "GameOverScreen", new Color(0.12f, 0.02f, 0.02f, 0.95f));
+        gameOverRoot = CreatePanel(parent, "GameOverScreen", new Color(0.008f, 0.009f, 0.016f, 0.86f));
+        gameOverRoot.GetComponent<Image>().raycastTarget = false;
+        AddMenuImage(gameOverRoot.transform, glowSprite, new Color(0.55f, 0.018f, 0.04f, 0.45f),
+            new Vector2(0.5f, 0.58f), new Vector2(850f, 850f));
+        AddMenuRule(gameOverRoot.transform, new Vector2(0.5f, 0.66f), 220f, new Color(0.82f, 0.13f, 0.17f, 0.8f));
 
-        gameOverTitleText = CreateText(gameOverRoot.transform, "Y O U   P E R I S H E D", 36, TextAnchor.MiddleCenter);
-        gameOverTitleText.rectTransform.anchoredPosition = new Vector2(0f, 80f);
-        gameOverTitleText.color = new Color(0.9f, 0.1f, 0.1f);
-
-        gameOverReasonText = CreateText(gameOverRoot.transform, "SLAIN BY SYNDICATE", 20, TextAnchor.MiddleCenter);
-        gameOverReasonText.rectTransform.anchoredPosition = new Vector2(0f, 20f);
-
-        gameOverActionText = CreateText(gameOverRoot.transform, "[ PRESS 'R' TO RESTART LEVEL ]", 20, TextAnchor.MiddleCenter);
-        gameOverActionText.rectTransform.anchoredPosition = new Vector2(0f, -70f);
-        gameOverActionText.color = new Color(1f, 0.8f, 0.3f);
+        Text eyebrow = CreateAnchoredMenuText(gameOverRoot.transform, "THE HUNT ENDS HERE", 13,
+            new Vector2(0.5f, 0.66f), new Vector2(420f, 30f), TextAnchor.MiddleCenter);
+        eyebrow.color = new Color(0.83f, 0.62f, 0.57f);
+        gameOverTitleText = CreateAnchoredMenuText(gameOverRoot.transform, "THE NIGHT TAKES YOU", 38,
+            new Vector2(0.5f, 0.57f), new Vector2(900f, 68f), TextAnchor.MiddleCenter);
+        gameOverTitleText.color = new Color(0.94f, 0.86f, 0.82f);
+        gameOverTitleText.fontStyle = FontStyle.Bold;
+        gameOverReasonText = CreateAnchoredMenuText(gameOverRoot.transform, "SLAIN BY THE SYNDICATE", 18,
+            new Vector2(0.5f, 0.49f), new Vector2(760f, 44f), TextAnchor.MiddleCenter);
+        gameOverReasonText.color = new Color(0.77f, 0.7f, 0.68f);
+        gameOverActionText = CreateAnchoredMenuText(gameOverRoot.transform, "THE NIGHT IS NOT OVER.", 14,
+            new Vector2(0.5f, 0.43f), new Vector2(700f, 34f), TextAnchor.MiddleCenter);
+        gameOverActionText.color = new Color(0.79f, 0.18f, 0.2f);
+        gameOverRestartButton = CreateMenuButton(gameOverRoot.transform, "RISE AGAIN", -50f,
+            () =>
+            {
+                if (GameManager.Instance == null) return;
+                int level = GameManager.Instance.currentLevelIndex == 4 ? 1 : GameManager.Instance.currentLevelIndex;
+                GameManager.Instance.StartLevel(level);
+            });
+        gameOverRestartButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -55f);
+        CreateMenuButton(gameOverRoot.transform, "RETURN TO MAIN MENU", -115f,
+            () => GameManager.Instance?.ReturnToMainMenu());
 
         gameOverRoot.SetActive(false);
     }
 
     private void BuildVictoryUI(Transform parent)
     {
-        victoryRoot = CreatePanel(parent, "VictoryScreen", new Color(0.04f, 0.06f, 0.12f, 0.96f));
+        victoryRoot = CreatePanel(parent, "VictoryScreen", new Color(0.008f, 0.009f, 0.016f, 0.86f));
+        victoryRoot.GetComponent<Image>().raycastTarget = false;
+        AddMenuImage(victoryRoot.transform, glowSprite, new Color(0.48f, 0.025f, 0.045f, 0.48f),
+            new Vector2(0.5f, 0.68f), new Vector2(900f, 900f));
+        AddMenuImage(victoryRoot.transform, moonSprite, new Color(1f, 0.72f, 0.67f, 0.56f),
+            new Vector2(0.5f, 0.72f), new Vector2(220f, 220f));
+        AddMenuRule(victoryRoot.transform, new Vector2(0.5f, 0.62f), 200f, new Color(0.85f, 0.16f, 0.18f, 0.85f));
 
-        Text title = CreateText(victoryRoot.transform, "V E N G E A N C E   S A T I S F I E D", 34, TextAnchor.MiddleCenter);
-        title.rectTransform.anchoredPosition = new Vector2(0f, 80f);
-        title.color = new Color(0.9f, 0.8f, 0.2f);
+        Text eyebrow = CreateAnchoredMenuText(victoryRoot.transform, "THE LAST CHAPTER", 13,
+            new Vector2(0.5f, 0.62f), new Vector2(420f, 28f), TextAnchor.MiddleCenter);
+        eyebrow.color = new Color(0.86f, 0.68f, 0.58f);
+        Text title = CreateAnchoredMenuText(victoryRoot.transform, "THE END", 48,
+            new Vector2(0.5f, 0.53f), new Vector2(760f, 74f), TextAnchor.MiddleCenter);
+        title.color = new Color(0.96f, 0.91f, 0.85f);
+        title.fontStyle = FontStyle.Bold;
+        Text desc = CreateAnchoredMenuText(victoryRoot.transform,
+            "THE SYNDICATE HAS FALLEN.\nBUT THE NIGHT ALWAYS RETURNS.", 17,
+            new Vector2(0.5f, 0.43f), new Vector2(760f, 70f), TextAnchor.MiddleCenter);
+        desc.color = new Color(0.78f, 0.71f, 0.68f);
 
-        Text desc = CreateText(victoryRoot.transform, "The Syndicate is broken. Rayan's story can begin again.", 18, TextAnchor.MiddleCenter);
-        desc.rectTransform.anchoredPosition = new Vector2(0f, 20f);
-
-        continueButton = CreateMenuButton(victoryRoot.transform, "CONTINUE", -65f,
+        continueButton = CreateMenuButton(victoryRoot.transform, "CONTINUE THE STORY", -65f,
             () => GameManager.Instance?.ContinueAfterVictory());
-        continueButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(-165f, -65f);
-        CreateMenuButton(victoryRoot.transform, "MAIN MENU", -65f,
-            () => GameManager.Instance?.ReturnToMainMenu()).GetComponent<RectTransform>().anchoredPosition = new Vector2(165f, -65f);
+        continueButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -35f);
+        continueButton.GetComponent<RectTransform>().sizeDelta = new Vector2(320f, 52f);
+        CreateMenuButton(victoryRoot.transform, "MAIN MENU", -105f,
+            () => GameManager.Instance?.ReturnToMainMenu()).GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -100f);
 
         victoryRoot.SetActive(false);
     }
@@ -665,6 +835,55 @@ public class UIManager : MonoBehaviour
         tex.SetPixel(0, 0, Color.white);
         tex.Apply();
         return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
+    }
+
+    private Sprite CreateGlowSprite()
+    {
+        const int resolution = 128;
+        Texture2D texture = new Texture2D(resolution, resolution, TextureFormat.RGBA32, false);
+        texture.name = "NightboundMenuGlow";
+        texture.filterMode = FilterMode.Bilinear;
+        Color[] pixels = new Color[resolution * resolution];
+        for (int y = 0; y < resolution; y++)
+        {
+            for (int x = 0; x < resolution; x++)
+            {
+                float dx = (x + 0.5f) / resolution * 2f - 1f;
+                float dy = (y + 0.5f) / resolution * 2f - 1f;
+                float alpha = Mathf.Pow(Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy)), 2.4f);
+                pixels[y * resolution + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0f, 0f, resolution, resolution), new Vector2(0.5f, 0.5f));
+    }
+
+    private Sprite CreateMoonSprite()
+    {
+        const int resolution = 128;
+        Texture2D texture = new Texture2D(resolution, resolution, TextureFormat.RGBA32, false);
+        texture.name = "NightboundMenuMoon";
+        texture.filterMode = FilterMode.Bilinear;
+        Color[] pixels = new Color[resolution * resolution];
+        Color core = new Color(0.72f, 0.12f, 0.15f);
+        Color edge = new Color(0.13f, 0.018f, 0.035f);
+        for (int y = 0; y < resolution; y++)
+        {
+            for (int x = 0; x < resolution; x++)
+            {
+                float dx = (x + 0.5f) / resolution * 2f - 1f;
+                float dy = (y + 0.5f) / resolution * 2f - 1f;
+                float radius = Mathf.Sqrt(dx * dx + dy * dy);
+                float alpha = Mathf.Clamp01((1f - radius) * resolution * 0.7f);
+                float shade = Mathf.Clamp01(0.85f - radius * 0.45f + dy * 0.08f);
+                Color color = Color.Lerp(edge, core, shade);
+                pixels[y * resolution + x] = new Color(color.r, color.g, color.b, alpha);
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0f, 0f, resolution, resolution), new Vector2(0.5f, 0.5f));
     }
 
     private static void Stretch(RectTransform r)

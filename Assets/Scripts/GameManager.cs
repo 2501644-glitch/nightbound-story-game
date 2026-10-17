@@ -270,28 +270,28 @@ public class GameManager : MonoBehaviour
         if (level == 1)
         {
             currentState = GameState.Level1;
-            UIManager.Instance?.SetAlertText("LEVEL 1: THE ALLEY — ELIMINATE 2 SYNDICATE THUGS");
+            UIManager.Instance?.SetLevelObjectiveText("LEVEL 1: THE ALLEY — ELIMINATE 2 SYNDICATE THUGS");
             LevelBuilder.Instance?.BuildLevel1(player);
             PlayLevel1Dialogue();
         }
         else if (level == 2)
         {
             currentState = GameState.Level2;
-            UIManager.Instance?.SetAlertText("LEVEL 2: THE GRAVEYARD — ELIMINATE 3 SYNDICATE SCOUTS");
+            UIManager.Instance?.SetLevelObjectiveText("LEVEL 2: THE GRAVEYARD — ELIMINATE 3 SYNDICATE SCOUTS");
             LevelBuilder.Instance?.BuildLevel2_Graveyard(player);
             PlayLevel2Dialogue();
         }
         else if (level == 3)
         {
             currentState = GameState.Level3;
-            UIManager.Instance?.SetAlertText("LEVEL 3: THE WAREHOUSE — ELIMINATE 4 ENFORCERS (1.3x ATK)");
+            UIManager.Instance?.SetLevelObjectiveText("LEVEL 3: THE WAREHOUSE — ELIMINATE 4 ENFORCERS (1.3x ATK)");
             LevelBuilder.Instance?.BuildLevel3_Warehouse(player);
             PlayLevel3Dialogue();
         }
         else if (level == 4)
         {
             currentState = GameState.Level4;
-            UIManager.Instance?.SetAlertText("FINAL LEVEL: DEFEAT THE SYNDICATE BOSS!");
+            UIManager.Instance?.SetLevelObjectiveText("FINAL LEVEL: DEFEAT THE SYNDICATE BOSS!");
             LevelBuilder.Instance?.BuildLevel4_Boss(player);
             PlayLevel4Dialogue();
         }

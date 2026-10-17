@@ -1,8 +1,11 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections.Generic;
 
 public class EnemyAI : MonoBehaviour
 {
+    private static int nextVisualVariant;
+
     [Header("Combat Stats")]
     public float maxHealth = 60f;
     public float currentHealth = 60f;
@@ -32,6 +35,9 @@ public class EnemyAI : MonoBehaviour
     private int currentPatrolIndex = 0;
     private float stunTimer = 0f;
     private float nextAttackTime = 0f;
+    private Animator deathAnimator;
+    private AnimatorOverrideController deathOverrideController;
+    private float deathAnimationEndTime;
 
     private void Awake()
     {
@@ -49,15 +55,25 @@ public class EnemyAI : MonoBehaviour
             originalColor = bodyRenderer.material.color;
         }
 
-        GameObject thugPrefab = Resources.Load<GameObject>("Characters/SyndicateThug");
+        int variant = nextVisualVariant % 6 + 1;
+        nextVisualVariant++;
+        string modelResourcePath = $"Characters/Enemy{variant}";
+        GameObject thugPrefab = Resources.Load<GameObject>(modelResourcePath);
+        if (thugPrefab == null)
+        {
+            modelResourcePath = "Characters/SyndicateThug";
+            thugPrefab = Resources.Load<GameObject>(modelResourcePath);
+        }
+
         if (thugPrefab != null)
         {
             Renderer defR = GetComponent<Renderer>();
             if (defR != null) defR.enabled = false;
 
             GameObject model = Instantiate(thugPrefab, transform);
-            model.transform.localPosition = new Vector3(0f, -0.9f, 0f);
+            model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
+            CharacterModelUtility.PrepareVisual(model, modelResourcePath, 1.8f, transform.position.y);
             Renderer mr = model.GetComponentInChildren<Renderer>();
             if (mr != null)
             {
@@ -86,7 +102,15 @@ public class EnemyAI : MonoBehaviour
     private void Update()
     {
         if (Time.timeScale <= 0f) return;
-        if (!isAlive) return;
+        if (!isAlive)
+        {
+            if (deathAnimator != null && Time.time >= deathAnimationEndTime)
+            {
+                deathAnimator.speed = 0f;
+                deathAnimator = null;
+            }
+            return;
+        }
 
         if (isStunned)
         {
@@ -255,13 +279,67 @@ public class EnemyAI : MonoBehaviour
         if (bodyRenderer != null && bodyRenderer.material != null)
             bodyRenderer.material.color = new Color(0.2f, 0.02f, 0.02f);
 
-        transform.rotation = Quaternion.Euler(85f, transform.eulerAngles.y, 0f);
-        transform.position = new Vector3(transform.position.x, 0.25f, transform.position.z);
+        bool hasDeathAnimation = PlayDeathAnimation();
 
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
 
         GameManager.Instance?.OnEnemyDefeated(this);
-        Destroy(gameObject, 6f);
+
+        if (!hasDeathAnimation)
+        {
+            Animator animator = GetComponentInChildren<Animator>(true);
+            if (animator != null) animator.speed = 0f;
+        }
+    }
+
+    private bool PlayDeathAnimation()
+    {
+        Animator animator = GetComponentInChildren<Animator>(true);
+        RuntimeAnimatorController sourceController = animator != null ? animator.runtimeAnimatorController : null;
+        AnimationClip[] walkClips = sourceController != null ? sourceController.animationClips : null;
+        AnimationClip[] deathClips = Resources.LoadAll<AnimationClip>("Animations/exo_red@Death");
+        if (deathClips.Length == 0)
+            deathClips = Resources.LoadAll<AnimationClip>("Animations/sword and shield death");
+        if (animator == null || walkClips == null || walkClips.Length == 0 || deathClips.Length == 0)
+            return false;
+
+        AnimationClip deathClip = deathClips[0];
+        deathOverrideController = new AnimatorOverrideController(sourceController);
+        var overrides = new List<KeyValuePair<AnimationClip, AnimationClip>>(walkClips.Length);
+        deathOverrideController.GetOverrides(overrides);
+        if (overrides.Count == 0)
+        {
+            Destroy(deathOverrideController);
+            deathOverrideController = null;
+            return false;
+        }
+
+        int walkClipIndex = overrides.FindIndex(pair => pair.Key != null && pair.Key.name == "Walk");
+        if (walkClipIndex < 0) walkClipIndex = 0;
+        overrides[walkClipIndex] = new KeyValuePair<AnimationClip, AnimationClip>(overrides[walkClipIndex].Key, deathClip);
+        deathOverrideController.ApplyOverrides(overrides);
+        if (agent != null)
+        {
+            if (agent.isOnNavMesh) agent.isStopped = true;
+            agent.enabled = false;
+        }
+        animator.runtimeAnimatorController = deathOverrideController;
+        animator.applyRootMotion = true;
+        animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        animator.speed = 1f;
+        animator.enabled = true;
+        animator.Play("Walk", 0, 0f);
+        animator.Update(0f);
+
+        deathAnimator = animator;
+        deathAnimationEndTime = Time.time + deathClip.length;
+        return true;
+    }
+
+    private void OnDestroy()
+    {
+        if (deathOverrideController != null)
+            Destroy(deathOverrideController);
     }
 }
