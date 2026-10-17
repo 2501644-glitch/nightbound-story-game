@@ -244,7 +244,7 @@ public class DialogueManager : MonoBehaviour
         rt.anchorMax = new Vector2(0.5f, 0f);
         rt.pivot = new Vector2(0.5f, 0f);
         rt.anchoredPosition = new Vector2(0f, 35f);
-        rt.sizeDelta = new Vector2(1040f, 150f);
+        rt.sizeDelta = new Vector2(1040f, 170f);
 
         Image bgImg = dialogueBoxRoot.GetComponent<Image>();
         bgImg.sprite = solidSprite;
@@ -322,13 +322,19 @@ public class DialogueManager : MonoBehaviour
         dtRect.anchorMin = Vector2.zero;
         dtRect.anchorMax = Vector2.one;
         dtRect.pivot = new Vector2(0f, 1f);
-        dtRect.offsetMin = new Vector2(130f, 32f);
-        dtRect.offsetMax = new Vector2(-20f, -48f);
+        dtRect.offsetMin = new Vector2(130f, 34f);
+        dtRect.offsetMax = new Vector2(-24f, -52f);
         dialogueBodyText = dTextObj.GetComponent<Text>();
         dialogueBodyText.font = gameFont;
-        dialogueBodyText.fontSize = 20;
+        dialogueBodyText.fontSize = 24;
+        dialogueBodyText.resizeTextForBestFit = true;
+        dialogueBodyText.resizeTextMinSize = 18;
+        dialogueBodyText.resizeTextMaxSize = 24;
         dialogueBodyText.lineSpacing = 1.15f;
         dialogueBodyText.alignment = TextAnchor.UpperLeft;
+        dialogueBodyText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        dialogueBodyText.verticalOverflow = VerticalWrapMode.Overflow;
+        dialogueBodyText.raycastTarget = false;
         dialogueBodyText.text = "";
         dialogueBodyText.color = new Color(0.92f, 0.92f, 0.95f);
 
