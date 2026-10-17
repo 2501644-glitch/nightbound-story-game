@@ -6,9 +6,9 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    public enum GameState { Cutscene, Level1, Level2, Level3, Level4, Paused, GameOver, Victory }
+    public enum GameState { MainMenu, Cutscene, Level1, Level2, Level3, Level4, Paused, GameOver, Victory }
 
-    public GameState currentState = GameState.Cutscene;
+    public GameState currentState = GameState.MainMenu;
     public int currentLevelIndex = 1;
 
     private PlayerController player;
@@ -69,7 +69,9 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         EnsurePlayerExists();
-        StartPrologueCutscene();
+        player.gameObject.SetActive(false);
+        currentState = GameState.MainMenu;
+        UIManager.Instance?.ShowMainMenu();
     }
 
     private void Update()
@@ -145,7 +147,7 @@ public class GameManager : MonoBehaviour
                 {
                     if (currentState == GameState.Victory)
                     {
-                        StartLevel(1);
+                        ContinueAfterVictory();
                     }
                     else
                     {
@@ -162,7 +164,14 @@ public class GameManager : MonoBehaviour
                 }
                 else if (Keyboard.current.escapeKey.wasPressedThisFrame)
                 {
-                    Application.Quit();
+                    if (currentState == GameState.Victory)
+                    {
+                        ReturnToMainMenu();
+                    }
+                    else
+                    {
+                        Application.Quit();
+                    }
                 }
             }
         }
@@ -170,10 +179,40 @@ public class GameManager : MonoBehaviour
 
     public void StartPrologueCutscene()
     {
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
         currentState = GameState.Cutscene;
+        activeEnemies.Clear();
+        LevelBuilder.Instance?.ClearCurrentLevel();
+        DialogueManager.Instance?.StopConversation();
+        UIManager.Instance?.HideMenusForCutscene();
         UIManager.Instance?.HideHUD();
         if (player != null) player.gameObject.SetActive(false);
-        CutsceneDirector.Instance?.PlayIntroCutscene();
+        if (CutsceneDirector.Instance != null)
+        {
+            CutsceneDirector.Instance.PlayIntroCutscene();
+        }
+        else
+        {
+            StartLevel(1);
+        }
+    }
+
+    public void ReturnToMainMenu()
+    {
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+        currentState = GameState.MainMenu;
+        activeEnemies.Clear();
+        LevelBuilder.Instance?.ClearCurrentLevel();
+        DialogueManager.Instance?.StopConversation();
+        if (player != null) player.gameObject.SetActive(false);
+        UIManager.Instance?.ShowMainMenu();
+    }
+
+    public void ContinueAfterVictory()
+    {
+        StartPrologueCutscene();
     }
 
     public void OnPlayerDefeated()
